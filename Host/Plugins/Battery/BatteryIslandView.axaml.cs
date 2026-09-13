@@ -42,6 +42,9 @@ public partial class BatteryIslandView : UserControl
     /// <summary>当前处于收缩态（决定等待态入口走展开还是出现）。</summary>
     private bool _isContracted;
 
+    /// <summary>已布置揭示起点（隐藏 → 等待）：等待态需要展开 + 从上方滑入。</summary>
+    private bool _revealPending;
+
     /// <summary>指针进入 / 离开胶囊（宿主据此暂停 / 重置空闲计时）。</summary>
     public event Action? IslandPointerEntered;
 
@@ -111,6 +114,12 @@ public partial class BatteryIslandView : UserControl
 
         // 揭示起点：整体位于上方（与退场吸出的终点对称）——展开时滑回原位
         Root.RenderTransform = new TranslateTransform(0d, DesignTokens.SlideOffset);
+
+        // 视觉此时已是收缩起点：同步内部标记。
+        // 关键：不能只改宽度不改 _isContracted——否则 PlayWaitingAsync 会误判为
+        // 「已在状态 C」而早退，宽度永久停在 200（表现为岛变成一个空壳 / 看不见）。
+        _isContracted = true;
+        _revealPending = true;
     }
 
     // ---------------- 数据绑定 ----------------
@@ -226,10 +235,13 @@ public partial class BatteryIslandView : UserControl
     /// </summary>
     public async Task PlayWaitingAsync(CancellationToken ct)
     {
-        if (_isPresent && !_isContracted)
+        // 注意：PrepareRevealStart 会把宽度置为收缩起点并置 _revealPending，
+        // 此状态下即使「上次已是状态 C」也必须走展开，否则宽度会永久停在 200。
+        if (_isPresent && !_isContracted && !_revealPending)
             return; // 响应完成 → 等待：保持状态 C
 
-        bool slideIn = !_isContracted; // 隐藏 → 等待：从上方滑入；收缩 → 等待：原地展开
+        bool slideIn = _revealPending; // 揭示起点 → 从上方滑入；收缩 → 原地展开
+        _revealPending = false;
 
         // 展开（收缩的反向）：先固化状态 C 基础值（宽度 560），动画只负责过渡
         ShowFullyExpandedStatic();
@@ -392,6 +404,7 @@ public partial class BatteryIslandView : UserControl
 
         ContractedHost.IsVisible = false;
         ContractedHost.Opacity = 0d;
+        _revealPending = false;
     }
 
     private void ShowFullyExpandedStatic()
