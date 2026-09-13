@@ -57,6 +57,29 @@ jobs:
     - name: Build (Release)
       run: dotnet build -c Release --no-restore /p:TreatWarningsAsErrors=true /p:Version=${{ steps.ver.outputs.version }}
 
+    - name: Test
+      run: dotnet test tests/EndfieldCharge.Tests/EndfieldCharge.Tests.csproj -c Debug -v minimal
+
+    # 格式基线：5 个工程都必须与 .editorconfig 一致（以 dotnet format 报告为准）
+    - name: Format check
+      shell: pwsh
+      run: |
+        $projects = @(
+          "EndfieldCharge.csproj",
+          "src/EndfieldCharge.Contracts/EndfieldCharge.Contracts.csproj",
+          "src/EndfieldCharge.Contracts.Avalonia/EndfieldCharge.Contracts.Avalonia.csproj",
+          "plugins/EndfieldCharge.Plugin.Music/EndfieldCharge.Plugin.Music.csproj",
+          "tests/EndfieldCharge.Tests/EndfieldCharge.Tests.csproj"
+        )
+        foreach ($p in $projects) {
+          Write-Host "dotnet format --verify-no-changes $p"
+          dotnet format $p --verify-no-changes
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "format check failed: $p (run dotnet format locally)"
+            exit 1
+          }
+        }
+
     - name: Publish single-file
       run: dotnet publish -c Release -o publish --no-build
 
