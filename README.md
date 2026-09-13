@@ -66,14 +66,18 @@ iscc installer\EndfieldCharge.iss
 
 ### CI / 发布（GitHub Actions）
 
-推送到 `main` 分支会自动构建安装包与便携版 zip（Actions 页面可下载 artifact）。
-推送 `v*` 标签（如 `v1.0.0`）会额外创建 GitHub Release，并把标签版本号写入
-程序集版本与安装包文件名：
+**CI**：推送到 `main`（以及 PR）会自动构建安装包与便携版 zip，Actions 页面可下载 artifact。
+包内**已包含外部插件**（`plugins/EndfieldCharge.Plugin.Music.dll`，由
+`EndfieldCharge.csproj` 的 `CopyPluginsToPublish` 放进 `publish/plugins/`）。
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+**Release 不随标签自动发布**，必须手动触发：
+
+1. 打标签并推送（标签由维护者创建）：`git tag v1.0.0` + `git push origin v1.0.0`
+2. GitHub → Actions → `Build Windows Installer` → **Run workflow**
+3. 运行目标选该 `v*` 标签，并勾选 `publish_release`
+4. 仅当「手动触发 + 勾选 + 运行在 `v*` 标签上」三者同时满足才创建 Release，
+   并把标签版本号写入程序集版本与安装包文件名；`main` 的流水版本（`0.0.<run_number>`）
+   只用于 Artifact，不会进入 Release
 
 ## 调试参数
 

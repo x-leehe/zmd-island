@@ -1,16 +1,23 @@
 name: Build Windows Installer
 
+# CI（push / PR）：只构建并上传 Artifact —— 安装器 + 便携版 zip，外部插件已包在包里。
+# Release：**不随标签自动发布**，必须手动触发本工作流：
+#   Actions 页面 → 本工作流 → Run workflow → 选中要发布的 v* 标签 → 勾选 publish_release。
+# 只有「手动触发 + publish_release 为真 + 运行在 v* 标签上」三者同时满足才创建 Release。
 on:
   push:
     branches: [ main ]
-    # 推送 v* 标签时额外发布 GitHub Release
-    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: '创建 GitHub Release（必须运行在 v* 标签上）'
+        type: boolean
+        default: false
 
 permissions:
-  contents: write   # 打标签时创建 Release 需要
+  contents: write   # 手动发布 Release 时需要
 
 jobs:
   build:
@@ -31,9 +38,14 @@ jobs:
       id: ver
       shell: pwsh
       run: |
+        $wantRelease = "${{ inputs.publish_release }}" -eq "true"
         if ($env:GITHUB_REF -like 'refs/tags/v*') {
           $v = $env:GITHUB_REF -replace 'refs/tags/v', ''
         } else {
+          if ($wantRelease) {
+            Write-Error "publish_release 需要运行在 v* 标签上（当前 $env:GITHUB_REF）"
+            exit 1
+          }
           $v = "0.0.$env:GITHUB_RUN_NUMBER"
         }
         "version=$v" >> $env:GITHUB_OUTPUT
@@ -65,11 +77,17 @@ jobs:
           Write-Error "publish\EndfieldCharge.exe not found"
           exit 1
         }
+        # 外部插件必须随发版一起打进去（由 EndfieldCharge.csproj 的 CopyPluginsToPublish 产出）
+        if (!(Test-Path "publish\plugins\EndfieldCharge.Plugin.Music.dll")) {
+          Write-Error "publish\plugins\EndfieldCharge.Plugin.Music.dll not found —— 发版未带上插件"
+          exit 1
+        }
         # 必须包含 SkiaSharp native dll（libSkiaSharp / libHarfBuzzSharp / av_libglesv2），
         # 只打 exe 会导致启动即崩
         $stage = "EndfieldCharge-$v-portable"
         New-Item -ItemType Directory -Path $stage | Out-Null
-        Copy-Item "publish\*" -Destination $stage -Exclude "*.pdb"
+        # -Recurse 不能省：publish\plugins\ 是子目录，不带 -Recurse 只会拷出空目录
+        Copy-Item "publish\*" -Destination $stage -Exclude "*.pdb" -Recurse
         Compress-Archive -Path "$stage\*" -DestinationPath "$stage.zip"
         Remove-Item $stage -Recurse
 
@@ -96,9 +114,10 @@ jobs:
           EndfieldCharge-*-portable.zip
         if-no-files-found: error
 
-    # 只有推送 v* 标签才发 Release（标签由维护者手动创建）
+    # 手动发布：必须 workflow_dispatch + 勾选 publish_release + 运行在 v* 标签上
+    # （标签由维护者手动创建；main 的 push 构建只出 Artifact，不会发布 Release）
     - name: Create GitHub Release
-      if: startsWith(github.ref, 'refs/tags/v')
+      if: github.event_name == 'workflow_dispatch' && inputs.publish_release && startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
         name: EndfieldCharge ${{ steps.ver.outputs.version }}
