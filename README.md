@@ -3,7 +3,7 @@
 插上 / 拔掉充电器时，从屏幕顶部弹出一块"灵动岛"式 HUD，显示当前电量（mWh 与百分比）。
 项目已从单体应用重构为**插件驱动**架构，HUD 本身是一个**四态灵动岛**，视觉与动画风格复刻《终末地》工业 / 超充模式 HUD。
 
-- **插件驱动**：`Contracts/` 定义插件契约（BCL-only，不引用 Avalonia），`Host/` 承载岛、插件注册表与菜单合成；电池充电检测降为一个不可卸载的元插件，其它插件只提供数据即可借用它的样式在岛上展示内容。
+- **插件驱动**：`src/EndfieldCharge.Contracts`（BCL-only）与 `src/EndfieldCharge.Contracts.Avalonia` 定义插件与皮肤契约，`Host/` 承载岛、插件注册表、外部插件加载器（每插件独立 `AssemblyLoadContext`）与菜单合成；电池充电检测降为一个不可卸载的元插件，其它插件只提供数据即可借用它的样式在岛上展示内容。音乐岛是**项目内的外部插件子项目**（`plugins/`），宿主只按契约认识它。
 - **四态灵动岛**：响应态 → 等待态 → 收缩态 → 隐藏态；鼠标移到屏幕顶缘细条停留即可再次展开。
 
 ## 下载安装
@@ -21,7 +21,9 @@
 |------|------|
 | 电量显示 | 剩余 / 满充容量（mWh，整数）与百分比，读取 `CallNtPowerInformation`，WMI 兜底 |
 | 电源监听 | `RegisterPowerSettingNotification` 订阅 GUID_ACDC_POWER_SOURCE，2s 轮询兜底，400ms 双向去抖（过滤 Windows 满电瞬时抖动） |
-| 插件驱动架构 | `Contracts/` 定义插件契约（`IPlugin` / `IPluginContext` / `IIslandContentProvider` / `IContextMenuContributor`），`Host/` 承载岛与插件运行时；插件可提供岛内容、注入右键菜单 |
+| 插件驱动架构 | `src/EndfieldCharge.Contracts` 定义插件契约（`IPlugin` / `IPluginContext` / `IIslandContentProvider` / `IContextMenuContributor`），`src/EndfieldCharge.Contracts.Avalonia` 定义皮肤契约（`IIslandSkin` / `IIslandHost` / `IIslandExpandToggle`）；`Host/Plugins/PluginLoader` 从 exe 旁 `plugins/*.dll` 加载外部插件（每插件独立 ALC，契约共享默认上下文） |
+| 音乐岛（外部插件） | `plugins/EndfieldCharge.Plugin.Music`：SMTC **事件驱动**（`SessionsChanged` / `CurrentSessionChanged` + 会话的媒体属性 / 播放态 / 时间线事件），不轮询；无会话显示空态、连接失败降级为「未连接 SMTC」并慢速自愈；音乐开始播放自动以**展开态**弹出（左键点岛即隐藏），岛内按钮可播放/暂停与切歌 |
+| 滚轮切换岛 | 鼠标在岛上滚动即可在各插件提供的岛之间循环切换（上滚上一个 / 下滚下一个）；皮肤把 `ParticipatesInWheelSwitch` 覆写为 `false` 即被排除出轮转 |
 | 电池元插件 | 电池充电检测实现为不可卸载的元插件（`CanUnload=false`），同时提供岛样式（`IIslandSkin`）与电池数据（`IIslandContentProvider`）；其它插件只提供数据即可借用该样式在岛上展示内容，无需接触 Avalonia |
 | 四态灵动岛 | 响应态（完整「超充模式」入场动画，固定时长）→ 等待态（电量胶囊）→ 收缩态（宽度约 200，仅电池环 + 百分比）→ 隐藏态；鼠标移到屏幕顶缘细条停留约 300ms 展开回等待态 |
 | 低电量变色 | 电量 < 20% 时黄绿电量圈变红（#FF4D4F） |
@@ -29,7 +31,7 @@
 | 设置窗口 | 全局缩放（0.4–1.2）、等待态超时、收缩态超时、HUD 位置（顶部居中/靠右/靠左）、显示器选择、语言、开机自启、窗口置顶，保存即生效并持久化 |
 | 托盘菜单 | 右键使用 Win32 原生菜单（显示 / 设置 / 置顶 / 插件▸ / 关于 / 退出） |
 | 岛右键菜单 | 自绘菜单（illogical-impulse 风格：`#201F20`、圆角 12、1px 描边、阴影），窗口 `WS_EX_NOACTIVATE` 永不激活，配合 `WH_MOUSE_LL` 全局鼠标钩子检测外部点击关闭；菜单项 = 插件注入项 + 宿主固定项（窗口置顶 / 插件▸ / 设置） |
-| 插件菜单注入 | 插件实现 `IContextMenuContributor` 即可向右键菜单注入条目，按 Target → Section → Priority 聚合；演示插件 `MusicDemoPlugin` 演示该能力 |
+| 插件菜单注入 | 插件实现 `IContextMenuContributor` 即可向右键菜单注入条目，按 Target → Section → Priority 聚合；音乐插件即以此提供「上一曲 / 下一曲 / 暂停·播放」 |
 | 点击穿透 | 窗口整窗 `WS_EX_TRANSPARENT` + 30ms 光标轮询；光标在岛区域时临时取消穿透使其可交互，其余区域点击穿透到桌面 / 其它窗口 |
 | 等待态 / 收缩态超时 | 等待态与收缩态分别有可配置超时 T1 / T2，超时后依次进入收缩态与隐藏态；鼠标悬停在岛区域内始终保持等待态，不会在悬停时收缩 |
 | 窗口置顶 | 设置窗口与岛右键菜单均可切换窗口置顶 |
@@ -63,6 +65,9 @@ iscc installer\EndfieldCharge.iss
 > 注意：`PublishSingleFile` 只把托管 dll 打进 exe，SkiaSharp 的 native dll
 > （libSkiaSharp / libHarfBuzzSharp / av_libglesv2）仍需与 exe 同目录 ——
 > 便携分发请打包整个 `publish/` 目录，不要只拷 exe。
+>
+> 外部插件由 `CopyPluginsToPublish` 产出到 `publish/plugins/`，**必须与 exe 一同分发**
+> （宿主从 exe 旁的 `plugins/` 目录加载）；只拷 exe 会没有音乐岛。
 
 ### CI / 发布（GitHub Actions）
 
@@ -90,56 +95,70 @@ iscc installer\EndfieldCharge.iss
 | `--preview-unplug` | 用示例数据播放响应动画后**停在等待态** |
 | `--debug-ring` | 静态呈现电量态 1.5s |
 | `--power-log` | 输出电源事件日志到 `%TEMP%\power-log.txt` |
+| `--demo-music` | 直接进入音乐岛等待态（外部插件 `plugins/EndfieldCharge.Plugin.Music`） |
 
-> 注意：这几个参数现在会停在等待态（不再自动消失）；参数互斥，按 `--demo` → `--preview-unplug` → `--preview` 的优先级生效。
+> 注意：这几个参数现在会停在等待态（不再自动消失）；参数互斥，按 `--demo` → `--preview-unplug` → `--preview` → `--demo-music` 的优先级生效。
 
 ## 项目结构
 
 ```
 EndfieldCharge/
-├─ Contracts/                            # 插件契约（BCL-only，不引用 Avalonia）
-│  ├─ IPlugin.cs                         # Id / DisplayName / CanUnload / Initialize / Shutdown
-│  ├─ IPluginContext.cs
-│  ├─ IIslandContentProvider.cs          # 岛内容数据契约
-│  ├─ IslandContentDescriptor.cs         # 内容描述符（Title/TagLine/Value/Unit/Percent/RingFraction/Tone/PlayKind）
-│  └─ MenuContribution.cs                # IContextMenuContributor + MenuContribution（插件注入右键菜单）
+├─ EndfieldCharge.csproj                 # 宿主唯一可执行项目（DefaultItemExcludes 排除 src/、plugins/ 等）
+├─ src/
+│  ├─ EndfieldCharge.Contracts/          # 插件契约（BCL-only，不引用 Avalonia）
+│  │  ├─ IPlugin.cs                      # Id / DisplayName / CanUnload / Initialize / Shutdown
+│  │  ├─ IPluginContext.cs               # DataDirectory + GetService<T>()
+│  │  ├─ IIslandContentProvider.cs       # 岛内容数据契约
+│  │  ├─ IslandContentDescriptor.cs      # 内容描述符（Title/TagLine/Value/Unit/Percent/RingFraction/Tone/PlayKind）
+│  │  ├─ MenuContribution.cs             # IContextMenuContributor + MenuContribution（插件注入右键菜单）
+│  │  ├─ Localization.cs                 # 多语言（运行时切换）
+│  │  └─ Logger.cs                       # 文件日志（%TEMP%\EndfieldCharge\）
+│  └─ EndfieldCharge.Contracts.Avalonia/ # 皮肤契约（唯一依赖 Avalonia 的契约程序集）
+│     ├─ IIslandSkin.cs                  # 四态播放 + 尺寸 + 4 个可选特性（ParticipatesInWheelSwitch / UsesHostContent / AutoIdleTimeout / WindowHeight）
+│     ├─ IIslandExpandToggle.cs          # 可选能力：岛内「展开 / 收起」按钮
+│     ├─ IIslandHost.cs                  # 宿主服务：当前皮肤 / 轮转列表 / 切换 / ShowExpanded
+│     ├─ IslandMetrics.cs                # 岛尺寸（命中区 / 菜单锚点）
+│     ├─ DesignTokens.cs  AnimationPrimitives.cs  RingGeometry.cs
+│     └─ Styles/Geometries.axaml         # Material 图标几何资源
+├─ plugins/
+│  └─ EndfieldCharge.Plugin.Music/       # 外部插件（项目内子项目，不单独建仓库）
+│     ├─ MusicPlugin.cs                  # IPlugin + IIslandSkin + IIslandExpandToggle + IContextMenuContributor
+│     ├─ MusicIslandView.axaml(.cs)      # 音乐岛三态视觉树与动画
+│     ├─ SmtcMediaSource.cs              # SMTC 事件驱动数据源（连接重试 / 降级 / 本地进度插值）
+│     └─ MusicFrame.cs                   # 一帧内容（含空态 / 降级态）
 ├─ Host/
 │  ├─ Island/
-│  │  ├─ IIslandSkin.cs                  # 皮肤契约：BindContent + PlayResponse / PlayWaiting / PlayContract / PlayDismiss + ApplyScale
 │  │  ├─ IslandVisualState.cs            # 四态枚举（响应 / 等待 / 收缩 / 隐藏）
 │  │  └─ IslandStateMachine.cs           # 四态状态机（纯逻辑、可测）
 │  ├─ Plugins/
 │  │  ├─ IPluginRegistry.cs  PluginRegistry.cs   # 进程内注册表（CanUnload==false 的插件拒绝移除）
-│  │  ├─ Battery/
-│  │  │  ├─ BatteryPlugin.cs             # 电池元插件（CanUnload=false，兼 IIslandSkin + IIslandContentProvider）
-│  │  │  ├─ BatteryIslandView.axaml(.cs) # 岛的视觉树 + 四态动画播放
-│  │  │  └─ BatteryAnimationTheme.cs     # 原 Animations/HudAnimations.cs
-│  │  └─ Demo/
-│  │     └─ MusicDemoPlugin.cs           # 演示插件：向右键菜单注入条目
+│  │  ├─ PluginLoader.cs  PluginContext.cs       # 外部 DLL 加载（每插件独立 ALC）+ 每插件上下文
+│  │  └─ Battery/
+│  │     ├─ BatteryPlugin.cs             # 电池元插件（CanUnload=false，兼 IIslandSkin + IIslandContentProvider）
+│  │     ├─ BatteryIslandView.axaml(.cs) # 岛的视觉树 + 四态动画播放
+│  │     └─ BatteryAnimationTheme.cs     # 电池动画主题
 │  └─ Menu/
 │     └─ PluginMenuComposer.cs           # 按 Target → Section → Priority 聚合菜单
 ├─ Services/
 │  ├─ AutoStart.cs               # 开机自启（HKCU Run 键读写）
 │  ├─ BatteryService.cs          # 电池快照（剩余/满充 mWh、百分比、AC 状态）
-│  ├─ Logger.cs                  # 文件日志（%TEMP%\EndfieldCharge\）
 │  ├─ PowerNative.cs             # P/Invoke：powrprof、message-only 窗口
 │  ├─ PowerWatcher.cs            # 电源变化监听 + 去抖确认
 │  └─ UpdateChecker.cs           # GitHub Releases 更新检查
 ├─ Settings/
 │  ├─ AppSettings.cs             # 设置模型（缩放/动画微调/超时/位置/显示器/语言/提醒）
 │  ├─ SettingsManager.cs         # 设置加载与持久化
-│  ├─ SettingsWindow.axaml       # 设置窗口（通用 / 动画 / 通知 / 关于）
-│  └─ SettingsWindow.axaml.cs
+│  └─ SettingsWindow.axaml(.cs)  # 设置窗口（通用 / 动画 / 通知 / 关于）
 ├─ Views/
-│  ├─ HudWindow.axaml(.cs)               # HUD 窗口外壳（透明 / 点击穿透 / 定位 / 状态机驱动）
+│  ├─ HudWindow.axaml(.cs)               # HUD 窗口外壳（透明 / 点击穿透 / 定位 / 状态机驱动 / 皮肤轮转）
 │  ├─ IslandContextMenuWindow.axaml(.cs) # 岛自绘右键菜单（非激活 + 鼠标钩子）
 │  └─ TrayMenuWindow.axaml(.cs)          # 自定义托盘菜单窗口（左键改为显示岛，保留备用）
-├─ Styles/                       # 颜色主题与图标几何（StreamGeometry）
+├─ Styles/HudTheme.axaml         # 颜色主题（图标几何已移入 Contracts.Avalonia）
 ├─ Assets/                       # tray_bolt.png（运行时图标）+ tray_bolt.ico（exe/安装器图标）
 ├─ installer/
-│  ├─ EndfieldCharge.iss         # Inno Setup 安装脚本
+│  ├─ EndfieldCharge.iss         # Inno Setup 安装脚本（打包整个 publish/，含 plugins/）
 │  └─ Languages/                 # 中文本地化（随仓库分发）
-└─ .github/workflows/            # CI：自动构建 + 打标签发 Release
+└─ .github/workflows/build.yml   # CI：构建 Artifact（含插件）；Release 需手动触发
 ```
 
 ## 动画实现要点
