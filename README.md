@@ -1,10 +1,10 @@
-# EndfieldCharge · 终末地风格电量 HUD
+# EndfieldCharge · 插件驱动的桌面灵动岛
 
 插上 / 拔掉充电器时，从屏幕顶部弹出一块"灵动岛"式 HUD，显示当前电量（mWh 与百分比）。
-视觉与动画风格复刻《终末地》工业 / 超充模式 HUD。
+项目已从单体应用重构为**插件驱动**架构，HUD 本身是一个**四态灵动岛**，视觉与动画风格复刻《终末地》工业 / 超充模式 HUD。
 
-- **插电**：完整三态动画 —— 电标弹出 → 胶囊撑高成圆角矩形显示「超充模式」→ 收成圆胶囊显示电量 → 停留 → 整体缩小收回
-- **拔电**：简化动画 —— 只弹电量圆胶囊，内容在胶囊完全出来后快速显现 → 停留 → 收回
+- **插件驱动**：`Contracts/` 定义插件契约（BCL-only，不引用 Avalonia），`Host/` 承载岛、插件注册表与菜单合成；电池充电检测降为一个不可卸载的元插件，其它插件只提供数据即可借用它的样式在岛上展示内容。
+- **四态灵动岛**：响应态 → 等待态 → 收缩态 → 隐藏态；鼠标移到屏幕顶缘细条停留即可再次展开。
 
 ## 下载安装
 
@@ -21,10 +21,18 @@
 |------|------|
 | 电量显示 | 剩余 / 满充容量（mWh，整数）与百分比，读取 `CallNtPowerInformation`，WMI 兜底 |
 | 电源监听 | `RegisterPowerSettingNotification` 订阅 GUID_ACDC_POWER_SOURCE，2s 轮询兜底，400ms 双向去抖（过滤 Windows 满电瞬时抖动） |
+| 插件驱动架构 | `Contracts/` 定义插件契约（`IPlugin` / `IPluginContext` / `IIslandContentProvider` / `IContextMenuContributor`），`Host/` 承载岛与插件运行时；插件可提供岛内容、注入右键菜单 |
+| 电池元插件 | 电池充电检测实现为不可卸载的元插件（`CanUnload=false`），同时提供岛样式（`IIslandSkin`）与电池数据（`IIslandContentProvider`）；其它插件只提供数据即可借用该样式在岛上展示内容，无需接触 Avalonia |
+| 四态灵动岛 | 响应态（完整「超充模式」入场动画，固定时长）→ 等待态（电量胶囊）→ 收缩态（宽度约 200，仅电池环 + 百分比）→ 隐藏态；鼠标移到屏幕顶缘细条停留约 300ms 展开回等待态 |
 | 低电量变色 | 电量 < 20% 时黄绿电量圈变红（#FF4D4F） |
 | 提醒通知 | 低电量提醒（阈值可调 5–40%）与充满提醒（≥99%），卡牌风格弹窗，4s 自动消失 |
-| 设置窗口 | 全局缩放（0.4–1.2）、显示时长（2–10s）、HUD 位置（顶部居中/靠右/靠左）、显示器选择、语言、开机自启，保存即生效并持久化 |
-| 托盘菜单 | 左键单击弹出自定义深色菜单（预览 / 设置 / 检查更新 / 退出） |
+| 设置窗口 | 全局缩放（0.4–1.2）、等待态超时、收缩态超时、HUD 位置（顶部居中/靠右/靠左）、显示器选择、语言、开机自启、窗口置顶，保存即生效并持久化 |
+| 托盘菜单 | 右键使用 Win32 原生菜单（显示 / 设置 / 置顶 / 插件▸ / 关于 / 退出） |
+| 岛右键菜单 | 自绘菜单（illogical-impulse 风格：`#201F20`、圆角 12、1px 描边、阴影），窗口 `WS_EX_NOACTIVATE` 永不激活，配合 `WH_MOUSE_LL` 全局鼠标钩子检测外部点击关闭；菜单项 = 插件注入项 + 宿主固定项（窗口置顶 / 插件▸ / 设置） |
+| 插件菜单注入 | 插件实现 `IContextMenuContributor` 即可向右键菜单注入条目，按 Target → Section → Priority 聚合；演示插件 `MusicDemoPlugin` 演示该能力 |
+| 点击穿透 | 窗口整窗 `WS_EX_TRANSPARENT` + 30ms 光标轮询；光标在岛区域时临时取消穿透使其可交互，其余区域点击穿透到桌面 / 其它窗口 |
+| 等待态 / 收缩态超时 | 等待态与收缩态分别有可配置超时 T1 / T2，超时后依次进入收缩态与隐藏态；鼠标悬停在岛区域内始终保持等待态，不会在悬停时收缩 |
+| 窗口置顶 | 设置窗口与岛右键菜单均可切换窗口置顶 |
 | 动画微调 | 设置窗口「动画」页实时预览并微调时长 / 回弹 / 波纹参数，保存即生效并持久化 |
 | 节能模式提示 | 开 / 关节能（省电）模式时弹出对应 HUD。24H2+（build 26100+）订阅 GUID_ENERGY_SAVER_STATUS 通知、轮询注册表 EnergySaverState；旧系统用 GUID_POWER_SAVING_STATUS + SystemStatusFlag。设置「通知」页可开关 |
 | 检查更新 | 读取 GitHub Releases API，比较程序集版本，一键跳转下载页 |
@@ -73,48 +81,85 @@ git push origin v1.0.0
 
 | 参数 | 作用 |
 |------|------|
-| `--demo` | 用示例数据播放一次**完整**动画（插电） |
-| `--preview` | 用本机真实电池数据播放一次完整动画 |
-| `--preview-unplug` | 用示例数据播放一次**简化**动画（拔电） |
-| `--debug-ring` | 静态呈现状态 C（电量态）1.5s |
+| `--demo` | 用示例数据播放响应动画后**停在等待态** |
+| `--preview` | 用本机真实电池数据播放响应动画后**停在等待态** |
+| `--preview-unplug` | 用示例数据播放响应动画后**停在等待态** |
+| `--debug-ring` | 静态呈现电量态 1.5s |
 | `--power-log` | 输出电源事件日志到 `%TEMP%\power-log.txt` |
 
-> 注意：这几个参数互斥，按 `--demo` → `--preview-unplug` → `--preview` 的优先级生效。
+> 注意：这几个参数现在会停在等待态（不再自动消失）；参数互斥，按 `--demo` → `--preview-unplug` → `--preview` 的优先级生效。
 
 ## 项目结构
 
 ```
 EndfieldCharge/
-├─ Animations/
-│  └─ HudAnimations.cs      # 时间线与动画轨道（KeySpline 逐段缓动）
+├─ Contracts/                            # 插件契约（BCL-only，不引用 Avalonia）
+│  ├─ IPlugin.cs                         # Id / DisplayName / CanUnload / Initialize / Shutdown
+│  ├─ IPluginContext.cs
+│  ├─ IIslandContentProvider.cs          # 岛内容数据契约
+│  ├─ IslandContentDescriptor.cs         # 内容描述符（Title/TagLine/Value/Unit/Percent/RingFraction/Tone/PlayKind）
+│  └─ MenuContribution.cs                # IContextMenuContributor + MenuContribution（插件注入右键菜单）
+├─ Host/
+│  ├─ Island/
+│  │  ├─ IIslandSkin.cs                  # 皮肤契约：BindContent + PlayResponse / PlayWaiting / PlayContract / PlayDismiss + ApplyScale
+│  │  ├─ IslandVisualState.cs            # 四态枚举（响应 / 等待 / 收缩 / 隐藏）
+│  │  └─ IslandStateMachine.cs           # 四态状态机（纯逻辑、可测）
+│  ├─ Plugins/
+│  │  ├─ IPluginRegistry.cs  PluginRegistry.cs   # 进程内注册表（CanUnload==false 的插件拒绝移除）
+│  │  ├─ Battery/
+│  │  │  ├─ BatteryPlugin.cs             # 电池元插件（CanUnload=false，兼 IIslandSkin + IIslandContentProvider）
+│  │  │  ├─ BatteryIslandView.axaml(.cs) # 岛的视觉树 + 四态动画播放
+│  │  │  └─ BatteryAnimationTheme.cs     # 原 Animations/HudAnimations.cs
+│  │  └─ Demo/
+│  │     └─ MusicDemoPlugin.cs           # 演示插件：向右键菜单注入条目
+│  └─ Menu/
+│     └─ PluginMenuComposer.cs           # 按 Target → Section → Priority 聚合菜单
 ├─ Services/
-│  ├─ AutoStart.cs          # 开机自启（HKCU Run 键读写）
-│  ├─ BatteryService.cs     # 电池快照（剩余/满充 mWh、百分比、AC 状态）
-│  ├─ Logger.cs             # 文件日志（%TEMP%\EndfieldCharge\）
-│  ├─ PowerNative.cs        # P/Invoke：powrprof、message-only 窗口
-│  ├─ PowerWatcher.cs       # 电源变化监听 + 去抖确认
-│  └─ UpdateChecker.cs      # GitHub Releases 更新检查
+│  ├─ AutoStart.cs               # 开机自启（HKCU Run 键读写）
+│  ├─ BatteryService.cs          # 电池快照（剩余/满充 mWh、百分比、AC 状态）
+│  ├─ Logger.cs                  # 文件日志（%TEMP%\EndfieldCharge\）
+│  ├─ PowerNative.cs             # P/Invoke：powrprof、message-only 窗口
+│  ├─ PowerWatcher.cs            # 电源变化监听 + 去抖确认
+│  └─ UpdateChecker.cs           # GitHub Releases 更新检查
 ├─ Settings/
-│  ├─ AppSettings.cs        # 设置模型（缩放/动画微调/位置/显示器/语言/提醒）
-│  ├─ SettingsManager.cs    # 设置加载与持久化
-│  ├─ SettingsWindow.axaml  # 设置窗口（通用 / 动画 / 通知 / 关于）
+│  ├─ AppSettings.cs             # 设置模型（缩放/动画微调/超时/位置/显示器/语言/提醒）
+│  ├─ SettingsManager.cs         # 设置加载与持久化
+│  ├─ SettingsWindow.axaml       # 设置窗口（通用 / 动画 / 通知 / 关于）
 │  └─ SettingsWindow.axaml.cs
 ├─ Views/
-│  ├─ HudWindow.axaml(.cs)  # HUD 视觉树（胶囊 / 电标 / 标题 / 数字 / 徽章 / 波纹）
-│  └─ TrayMenuWindow.axaml(.cs)    # 左键自定义托盘菜单
-├─ Styles/                  # 颜色主题与图标几何（StreamGeometry）
-├─ Assets/                  # tray_bolt.png（运行时图标）+ tray_bolt.ico（exe/安装器图标）
+│  ├─ HudWindow.axaml(.cs)               # HUD 窗口外壳（透明 / 点击穿透 / 定位 / 状态机驱动）
+│  ├─ IslandContextMenuWindow.axaml(.cs) # 岛自绘右键菜单（非激活 + 鼠标钩子）
+│  └─ TrayMenuWindow.axaml(.cs)          # 自定义托盘菜单窗口（左键改为显示岛，保留备用）
+├─ Styles/                       # 颜色主题与图标几何（StreamGeometry）
+├─ Assets/                       # tray_bolt.png（运行时图标）+ tray_bolt.ico（exe/安装器图标）
 ├─ installer/
-│  ├─ EndfieldCharge.iss    # Inno Setup 安装脚本
-│  └─ Languages/            # 中文本地化（随仓库分发）
-└─ .github/workflows/       # CI：自动构建 + 打标签发 Release
+│  ├─ EndfieldCharge.iss         # Inno Setup 安装脚本
+│  └─ Languages/                 # 中文本地化（随仓库分发）
+└─ .github/workflows/            # CI：自动构建 + 打标签发 Release
 ```
 
 ## 动画实现要点
 
-- Avalonia 11 的 `KeyFrame` 使用 **`KeySpline`（贝塞尔控制点）** 做逐段缓动，多关键帧下 `Animation.Easing` 不生效 —— 每段必须显式指定 `KeySpline`，否则该段为线性。
+- HUD 是一个四态状态机（响应态 → 等待态 → 收缩态 → 隐藏态），流转与超时由纯逻辑的 `IslandStateMachine` 驱动，便于测试。
+- 响应态入场动画**时长固定**，不再随设置伸缩。
+- 收缩 / 隐藏时胶囊缩小并向上「吸」出屏幕；展开是收缩的**倒放**，并叠加从上方滑入（Y -110 → 0）。入场前先铺好起始态再显示，避免闪跳。
+- Avalonia 11 的 `KeyFrame` 使用 **`KeySpline`（贝塞尔控制点）** 做逐段缓动，多关键帧下 `Animation.Easing` 不生效，每段必须显式指定 `KeySpline`，否则该段为线性。
 - `Border.HeightProperty`（即 `Layoutable.HeightProperty`）可直接动画，因此胶囊高度的 `60 → 90 → 60` 用独立轨道驱动。
 - 收尾「整体缩小关没」由外层 `ScaleHost` 的 `RenderTransform` 统一缩放，胶囊本身宽度不动。
+
+## 鸣谢
+
+- [Avalonia](https://avaloniaui.net/) — 跨平台 .NET UI 框架。
+- [Lenkmat/endfield-charge](https://github.com/Lenkmat/endfield-charge) — 原始的终末地风格电量 HUD（本项目的前身）。
+- [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland)（illogical-impulse）— 右键菜单与弹出面板的视觉/动效设计参考。
+- 计划中参考 / 将来集成的开源项目：
+  - [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) — WMI 温度/硬件传感器
+  - [cava](https://github.com/karlstav/cava) — 音频频谱可视化（MIT）
+  - [localsend-go](https://github.com/meowrain/localsend-go) — LocalSend 命令行客户端
+  - [LRCLIB](https://github.com/tranxuanthang/lrclib) — 开放式歌词服务（MIT）
+  - [Lyricify-Lyrics-Helper](https://github.com/WXRIW/Lyricify-Lyrics-Helper) — LRC 解析参考（Apache-2.0）
+  - [Waylyrics](https://github.com/waylyrics/waylyrics) — 桌面歌词参考（MIT）
+  - [DropIt](https://sourceforge.net/projects/dropit/) — 规则化文件归档**概念**参考（GPL；仅借鉴概念，未引入其代码）
 
 ## 许可证
 
