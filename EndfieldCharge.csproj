@@ -29,8 +29,8 @@
     <RuntimeIdentifier Condition="'$(Configuration)'=='Release'">win-x64</RuntimeIdentifier>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- reference/ 为外部参考仓库（LibreHardwareMonitor 等），不参与本项目编译；
-         src/ 与 plugins/ 为独立项目（契约程序集 / 外部插件），由各自 csproj 编译 -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);reference/**;src/**;plugins/**</DefaultItemExcludes>
+         src/ / plugins/ / tests/ 为独立项目（契约程序集、外部插件、单元测试），由各自 csproj 编译 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);reference/**;references/**;src/**;plugins/**;tests/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
