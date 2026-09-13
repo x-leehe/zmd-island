@@ -90,7 +90,8 @@ public partial class MusicIslandView : UserControl
     private void ApplyFrame()
     {        var f = _frame;
 
-        WaitLyric.Text = f.LyricCurrent ?? string.Empty;
+        // 等待态那一行是「当前歌词」位：歌词模块尚未接入时退回曲名，避免整行空白
+        WaitLyric.Text = string.IsNullOrEmpty(f.LyricCurrent) ? f.Title ?? string.Empty : f.LyricCurrent;
 
         UnfoldTitleText.Text = f.Title ?? "--";
         UnfoldArtistText.Text = f.Artist ?? string.Empty;
