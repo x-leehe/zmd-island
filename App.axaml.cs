@@ -4,8 +4,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Platform;
-using Avalonia.Media.Imaging;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using EndfieldCharge.Contracts;
@@ -259,7 +259,8 @@ public partial class App : Application
         var alert = new Window
         {
             Title = title,
-            Width = 340, Height = 140,
+            Width = 340,
+            Height = 140,
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
             Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#18181A")),
             Foreground = Avalonia.Media.Brushes.White,

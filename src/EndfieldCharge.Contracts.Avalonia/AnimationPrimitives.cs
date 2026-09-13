@@ -103,16 +103,16 @@ public static class AnimationPrimitives
     /// <summary>通用两帧过渡（默认 QuadraticEaseOut）。</summary>
     public static Avalonia.Animation.Animation Transition(AvaloniaProperty property, object from, object to,
         int ms = DesignTokens.Timing.FadeMs, Easing? easing = null) => new()
-    {
-        Duration = TimeSpan.FromMilliseconds(ms),
-        FillMode = FillMode.Forward,
-        Easing = easing ?? new QuadraticEaseOut(),
-        Children =
+        {
+            Duration = TimeSpan.FromMilliseconds(ms),
+            FillMode = FillMode.Forward,
+            Easing = easing ?? new QuadraticEaseOut(),
+            Children =
         {
             new KeyFrame { Cue = new Cue(0d), Setters = { new Setter(property, from) } },
             new KeyFrame { Cue = new Cue(1d), Setters = { new Setter(property, to) } },
         },
-    };
+        };
 
     /// <summary>淡入淡出（默认 200ms QuadraticEaseOut）。</summary>
     public static Avalonia.Animation.Animation Fade(double from, double to,
@@ -132,14 +132,14 @@ public static class AnimationPrimitives
     /// <summary>整体等比缩放（同时驱动 ScaleX / ScaleY）。</summary>
     public static Avalonia.Animation.Animation ScaleUniform(double from, double to,
         int ms, Easing? easing = null) => new()
-    {
-        Duration = TimeSpan.FromMilliseconds(ms),
-        FillMode = FillMode.Forward,
-        Easing = easing ?? new QuadraticEaseOut(),
-        Children =
+        {
+            Duration = TimeSpan.FromMilliseconds(ms),
+            FillMode = FillMode.Forward,
+            Easing = easing ?? new QuadraticEaseOut(),
+            Children =
         {
             new KeyFrame { Cue = new Cue(0d), Setters = { ScaleX(from), ScaleY(from) } },
             new KeyFrame { Cue = new Cue(1d), Setters = { ScaleX(to), ScaleY(to) } },
         },
-    };
+        };
 }

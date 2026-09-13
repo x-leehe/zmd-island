@@ -273,7 +273,7 @@ public sealed class PowerWatcher : IDisposable
 
         _lastSaverEnabled = enabled;
         TraceEvent($"PowerSavingChanged(enabled={enabled})");
-        Logger.Info($"PowerWatcher: power saving { (enabled ? "ON" : "OFF") }");
+        Logger.Info($"PowerWatcher: power saving {(enabled ? "ON" : "OFF")}");
         PowerSavingChanged?.Invoke(this, enabled);
     }
 
