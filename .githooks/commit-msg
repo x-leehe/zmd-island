@@ -1,0 +1,58 @@
+#!/bin/sh
+# Commit message hook — enforces the Angular convention used by this project.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Bypass in an emergency (please don't): git commit --no-verify
+#
+# Hard failures: header shape, non-ASCII text, over-long header, trailing period.
+# Soft warning: missing/short body for feat/fix (explaining "why" is the point).
+
+msg_file="$1"
+[ -n "$msg_file" ] || exit 0
+
+# Git-generated subjects are not ours to validate.
+first=$(head -n 1 "$msg_file")
+case "$first" in
+  "Merge "*|"Revert "*|"fixup!"*|"squash!"*)
+    exit 0
+    ;;
+esac
+
+fail=0
+
+# 1) English only (the project rule).
+if LC_ALL=C grep -q '[^ -~]' "$msg_file"; then
+  echo "commit-msg: commit messages must be in English (non-ASCII text found)." >&2
+  fail=1
+fi
+
+# 2) Header: <type>(<scope>)!: <summary>
+pattern='^(build|ci|docs|feat|fix|perf|refactor|test|chore|revert)(\([a-z0-9._/-]+\))?!?: [a-z0-9](.*[^.]|)$'
+if ! printf '%s\n' "$first" | LC_ALL=C grep -Eq "$pattern"; then
+  echo "commit-msg: header must look like: <type>(<scope>): <summary>" >&2
+  echo "           types: build ci docs feat fix perf refactor test chore revert" >&2
+  echo "           scopes: hud music battery contracts plugins menu power settings build ci docs" >&2
+  echo "           summary: lowercase, imperative, no trailing period — got: $first" >&2
+  fail=1
+fi
+
+# 3) Header length.
+if [ "${#first}" -gt 100 ]; then
+  echo "commit-msg: header is ${#first} characters, keep it under 100." >&2
+  fail=1
+fi
+
+# 4) Body (soft): feat / fix should explain why.
+body_lines=$(tail -n +2 "$msg_file" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
+case "$first" in
+  feat*|fix*)
+    if [ "$body_lines" -lt 2 ]; then
+      echo "commit-msg: warning — feat/fix should carry a body explaining why (Angular convention)." >&2
+    fi
+    ;;
+esac
+
+[ "$fail" -eq 0 ] || exit 1
+exit 0
