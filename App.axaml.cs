@@ -3,10 +3,16 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Platform;
 using Avalonia.Media.Imaging;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using EndfieldCharge.Contracts;
+using EndfieldCharge.Host.Menu;
+using EndfieldCharge.Host.Plugins;
+using EndfieldCharge.Host.Plugins.Battery;
+using EndfieldCharge.Host.Plugins.Demo;
 using EndfieldCharge.Services;
 using EndfieldCharge.Settings;
 using EndfieldCharge.Views;
@@ -18,7 +24,8 @@ public partial class App : Application
     private PowerWatcher? _watcher;
     private HudWindow? _hud;
     private TrayIcon? _tray;
-    private TrayMenuWindow? _trayMenu;
+    private NativeMenuItem? _trayTopmostItem;   // 原生右键菜单「置顶」项（供设置变更时刷新勾选）
+    private PluginRegistry? _pluginRegistry;    // 进程内插件注册表
     private AppSettings _settings = new();
     private IClassicDesktopStyleApplicationLifetime? _desktop;
     private bool _lastLowBatteryNotified;
@@ -54,7 +61,12 @@ public partial class App : Application
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         desktop.Exit += OnDesktopExit;
 
-        _hud = new HudWindow();
+        // 插件注册表：电池元插件（皮肤/内容，不可卸载）+ 音乐演示插件（菜单注入）
+        _pluginRegistry = new PluginRegistry();
+        _pluginRegistry.Register(new BatteryPlugin());
+        _pluginRegistry.Register(new MusicDemoPlugin());
+
+        _hud = new HudWindow(_pluginRegistry);
         _hud.ApplySettings(_settings);
 
         SetupTrayIcon();
@@ -78,6 +90,10 @@ public partial class App : Application
         _settings = settings;
         Localization.UseSettings(settings);
         _hud?.ApplySettings(settings);
+
+        // 同步原生右键菜单「置顶」勾选状态（岛菜单 / 设置窗口切换后保持一致）
+        if (_trayTopmostItem is not null)
+            _trayTopmostItem.IsChecked = settings.WindowTopmost;
 
         // 更新托盘提示
         if (_tray is not null)
@@ -305,8 +321,8 @@ public partial class App : Application
 
     private void SetupTrayIcon()
     {
-        // 自定义菜单（TrayMenuWindow）：左键托盘弹出。
-        // 不设原生 Menu——11.2 中右键仅在 Menu 非空时弹原生菜单，置空后右键无动作。
+        // 左键：自定义 Avalonia 菜单（TrayMenuWindow），沿用 OnTrayClicked；
+        // 右键：原生 Win32 菜单（TrayIcon.Menu = NativeMenu，仅 Menu 非空时右键才弹原生菜单）。
         _tray = new TrayIcon
         {
             ToolTipText = Localization.TrayTooltip,
@@ -314,6 +330,7 @@ public partial class App : Application
         };
 
         _tray.Clicked += OnTrayClicked;
+        _tray.Menu = BuildTrayNativeMenu();
 
         try
         {
@@ -329,59 +346,136 @@ public partial class App : Application
         TrayIcon.SetIcons(this, icons);
     }
 
-    private void OnTrayClicked(object? sender, EventArgs e)
+    /// <summary>
+    /// 右键原生菜单（插件驱动）：
+    /// A 类宿主固定项 = 显示 / 设置 / 置顶(可勾选) / 插件▸ / 关于 / 退出；
+    /// B 类「插件 ▸」子菜单行由 PluginMenuComposer 从注册表生成（元插件锁定）。
+    /// </summary>
+    private NativeMenu BuildTrayNativeMenu()
     {
-        // 关闭已打开的菜单
-        if (_trayMenu is not null && _trayMenu.IsVisible)
+        if (_pluginRegistry is null)
+            return new NativeMenu();
+
+        var pluginChildren = PluginMenuComposer.BuildPluginChildren(MenuTarget.Tray, _pluginRegistry);
+
+        var hostFixed = new List<MenuContribution>
         {
-            _trayMenu.Close();
-            _trayMenu = null;
-            return;
+            new()
+            {
+                Id = "tray.show",
+                Header = Localization.Show,
+                Target = MenuTarget.Tray,
+                Section = MenuSection.HostFixed,
+                Priority = 0,
+                Command = () => _ = TriggerHudAsync(),
+            },
+            new()
+            {
+                Id = "tray.settings",
+                Header = Localization.Settings,
+                Target = MenuTarget.Tray,
+                Section = MenuSection.HostFixed,
+                Priority = 1,
+                Command = () => OpenSettingsWindow(),
+            },
+            new()
+            {
+                Id = "tray.topmost",
+                Header = Localization.Topmost,
+                Target = MenuTarget.Tray,
+                Section = MenuSection.HostFixed,
+                Priority = 2,
+                IsChecked = _settings.WindowTopmost,
+                Command = ToggleWindowTopmost,
+            },
+            new()
+            {
+                Id = "tray.plugins",
+                Header = Localization.Plugins,
+                Target = MenuTarget.Tray,
+                Section = MenuSection.HostFixed,
+                Priority = 3,
+                Children = pluginChildren,
+            },
+            new()
+            {
+                Id = "tray.about",
+                Header = Localization.About,
+                Target = MenuTarget.Tray,
+                Section = MenuSection.HostFixed,
+                Priority = 4,
+                Command = () => OpenSettingsWindow("About"),
+            },
+            new()
+            {
+                Id = "tray.exit",
+                Header = Localization.Exit,
+                Target = MenuTarget.Tray,
+                Section = MenuSection.HostFixed,
+                Priority = 5,
+                Command = () => _desktop?.Shutdown(),
+            },
+        };
+
+        var composed = PluginMenuComposer.Compose(MenuTarget.Tray, _pluginRegistry, hostFixed);
+        return BuildNativeMenu(composed);
+    }
+
+    /// <summary>把合成结果转成原生菜单树（分隔线 / 复选框 / 子菜单 / 命令）。</summary>
+    private NativeMenu BuildNativeMenu(IReadOnlyList<MenuContribution> items)
+    {
+        var menu = new NativeMenu();
+        foreach (var item in items)
+        {
+            if (item.IsSeparator)
+            {
+                menu.Items.Add(new NativeMenuItemSeparator());
+                continue;
+            }
+
+            bool checkable = item.IsChecked || item.Id.Contains("topmost", StringComparison.Ordinal);
+            var native = new NativeMenuItem
+            {
+                Header = item.Header,
+                IsEnabled = item.IsEnabled,
+                ToggleType = checkable ? NativeMenuItemToggleType.CheckBox : NativeMenuItemToggleType.None,
+                IsChecked = item.IsChecked,
+            };
+
+            if (item.Children is { Count: > 0 })
+                native.Menu = BuildNativeMenu(item.Children);
+
+            if (item.Command is not null)
+                native.Click += (_, _) => item.Command();
+
+            if (item.Id == "tray.topmost")
+                _trayTopmostItem = native; // 供 OnSettingsChanged 刷新勾选
+
+            menu.Items.Add(native);
         }
 
-        // 单击托盘图标：立即播放电量预览（真实电池数据，完整三态动画），同时弹出菜单
-        _ = TriggerHudAsync();
+        return menu;
+    }
 
-        _trayMenu = new TrayMenuWindow();
-        _trayMenu.PreviewClicked += () => { _trayMenu.Close(); _ = TriggerHudAsync(); };
-        _trayMenu.SettingsClicked += () => { _trayMenu.Close(); OpenSettingsWindow(); };
-        _trayMenu.CheckUpdateClicked += async () =>
-        {
-            _trayMenu.Close();
-            _trayMenu = null;
-            try
-            {
-                var (hasUpdate, version, url) = await UpdateChecker.CheckAsync();
-                if (hasUpdate && url is not null)
-                {
-                    var result = await MessageBox.Show(
-                        _hud ?? new HudWindow(),
-                        Localization.UpdateMsg(version ?? "?"),
-                        Localization.UpdateTitle,
-                        MessageBoxButton.OkCancel);
+    /// <summary>「置顶」切换：翻转设置 → 持久化 → 广播（HUD.ApplySettings 生效）。</summary>
+    private void ToggleWindowTopmost()
+    {
+        var updated = _settings with { WindowTopmost = !_settings.WindowTopmost };
+        SettingsManager.Save(updated);
+        OnSettingsChanged(updated);
+    }
 
-                    if (result == MessageBoxResult.Ok)
-                        Platform.Start(url);
-                }
-                else
-                {
-                    await ShowAlertAsync(Localization.CheckUpdate, Localization.UpToDate);
-                }
-            }
-            catch
-            {
-                await ShowAlertAsync(Localization.CheckUpdate, Localization.UpdateCheckFailed);
-            }
-        };
-        _trayMenu.ExitClicked += () => { _trayMenu.Close(); _desktop?.Shutdown(); };
+    private void OnTrayClicked(object? sender, EventArgs e)
+    {
+        // 左键：等待态开关——已显示则隐藏；未显示则显示状态 C 并保持可见（无自动隐藏）。
+        // 左键不再弹出自定义 TrayMenuWindow（该类保留供日后复用）；右键仍是原生 Win32 菜单。
+        if (_hud is null)
+            return;
 
-        // 刷新本地化文字
-        _trayMenu.MenuPreviewText.Text = Localization.PreviewHud;
-        _trayMenu.MenuSettingsText.Text = Localization.Settings;
-        _trayMenu.MenuCheckUpdateText.Text = Localization.CheckUpdate;
-        _trayMenu.MenuExitText.Text = Localization.Exit;
-
-        _trayMenu.ShowAtTray();
+        if (_hud.IsIslandVisible)
+            _hud.HideIsland();
+        else
+            _ = _hud.ShowWaitingAsync();
     }
 
     private void OpenSettingsWindow(string initialTab = "General")

@@ -35,7 +35,20 @@ public static class Localization
     public static string Settings => IsChinese ? "设置" : "Settings";
     public static string CheckUpdate => IsChinese ? "检查更新" : "Check for Updates";
     public static string Exit => IsChinese ? "退出" : "Exit";
+    public static string Show => IsChinese ? "显示" : "Show";
+    public static string About => IsChinese ? "关于" : "About";
     public static string TrayTooltip => IsChinese ? "EndfieldCharge · 电量 HUD" : "EndfieldCharge · Power HUD";
+
+    // ---- 岛右键菜单 ----
+    public static string Topmost => IsChinese ? "窗口置顶" : "Always on Top";
+    public static string Plugins => IsChinese ? "插件" : "Plugins";
+    public static string PluginBattery => IsChinese ? "电池仪表" : "Battery Gauge";
+    public static string PluginFileTray => IsChinese ? "文件托盘" : "File Tray";
+    public static string PluginWeather => IsChinese ? "天气" : "Weather";
+    public static string MediaPrev => IsChinese ? "上一曲" : "Previous Track";
+    public static string MediaNext => IsChinese ? "下一曲" : "Next Track";
+    public static string MediaPause => IsChinese ? "暂停" : "Pause";
+    public static string DescTopmost => IsChinese ? "HUD 始终显示在其他窗口上方" : "Keep HUD above other windows";
 
     // ---- 设置窗口 ----
     public static string SettingsTitle => IsChinese ? "设置" : "Settings";
@@ -43,7 +56,8 @@ public static class Localization
     public static string TabNotifications => IsChinese ? "通知" : "Notifications";
     public static string TabAbout => IsChinese ? "关于" : "About";
     public static string LabelScale => IsChinese ? "全局缩放" : "Global Scale";
-    public static string LabelDuration => IsChinese ? "显示时长（秒）" : "Display Duration (s)";
+    public static string LabelWaitingTimeout => IsChinese ? "等待态超时（秒）" : "Waiting Timeout (s)";
+    public static string LabelContractedTimeout => IsChinese ? "收缩态超时（秒）" : "Contracted Timeout (s)";
     public static string LabelPosition => IsChinese ? "HUD 位置" : "HUD Position";
     public static string LabelMonitor => IsChinese ? "显示器" : "Monitor";
     public static string LabelLanguage => IsChinese ? "语言" : "Language";

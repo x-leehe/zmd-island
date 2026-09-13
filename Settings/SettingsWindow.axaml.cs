@@ -54,10 +54,15 @@ public partial class SettingsWindow : Window
             if (e.Property == RangeBase.ValueProperty)
                 ScaleValue.Text = ScaleSlider.Value.ToString("F2");
         };
-        DurationSlider.PropertyChanged += (_, e) =>
+        WaitingTimeoutSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property == RangeBase.ValueProperty)
-                DurationValue.Text = $"{DurationSlider.Value:F1}s";
+                WaitingTimeoutValue.Text = $"{WaitingTimeoutSlider.Value:F1}s";
+        };
+        ContractedTimeoutSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty)
+                ContractedTimeoutValue.Text = $"{ContractedTimeoutSlider.Value:F1}s";
         };
         BounceSlider.PropertyChanged += (_, e) =>
         {
@@ -139,7 +144,10 @@ public partial class SettingsWindow : Window
         TabNotificationsText.Text = Localization.TabNotifications;
         TabAboutText.Text = Localization.TabAbout;
         LabelScale.Text = Localization.LabelScale;
-        LabelDuration.Text = Localization.LabelDuration;
+        LabelTopmost.Text = Localization.Topmost;
+        DescTopmostText.Text = Localization.DescTopmost;
+        LabelWaitingTimeout.Text = Localization.LabelWaitingTimeout;
+        LabelContractedTimeout.Text = Localization.LabelContractedTimeout;
         LabelPosition.Text = Localization.LabelPosition;
         LabelMonitor.Text = Localization.LabelMonitor;
         LabelLanguage.Text = Localization.LabelLanguage;
@@ -225,7 +233,9 @@ public partial class SettingsWindow : Window
     private void LoadSettings(AppSettings s)
     {
         ScaleSlider.Value = s.GlobalScale;
-        DurationSlider.Value = s.DisplayDurationSeconds;
+        WindowTopmostSwitch.IsChecked = s.WindowTopmost;
+        WaitingTimeoutSlider.Value = s.WaitingTimeoutSeconds;
+        ContractedTimeoutSlider.Value = s.ContractedTimeoutSeconds;
         BounceSlider.Value = s.BounceStrength;
         RippleIntensitySlider.Value = s.RippleIntensity;
         RippleSpreadSlider.Value = s.RippleSpread;
@@ -258,7 +268,9 @@ public partial class SettingsWindow : Window
     private AppSettings CollectSettings() => new()
     {
         GlobalScale = Math.Round(ScaleSlider.Value, 2),
-        DisplayDurationSeconds = Math.Round(DurationSlider.Value, 1),
+        WindowTopmost = WindowTopmostSwitch.IsChecked == true,
+        WaitingTimeoutSeconds = Math.Round(WaitingTimeoutSlider.Value, 1),
+        ContractedTimeoutSeconds = Math.Round(ContractedTimeoutSlider.Value, 1),
         BounceStrength = Math.Round(BounceSlider.Value, 3),
         RippleIntensity = Math.Round(RippleIntensitySlider.Value, 2),
         RippleSpread = Math.Round(RippleSpreadSlider.Value, 2),
@@ -303,10 +315,9 @@ public partial class SettingsWindow : Window
     {
         PreviewPlayBtn.IsEnabled = false;
 
-        // 用当前滑块值构造参数，无需保存即可预览效果
+        // 用当前滑块值构造参数，无需保存即可预览效果（响应动画时长固定为基线节奏）
         var options = new AnimationOptions
         {
-            DurationSeconds = Math.Clamp(DurationSlider.Value, 3d, 10d),
             BounceStrength = Math.Clamp(BounceSlider.Value, 0d, 0.5d),
             RippleIntensity = Math.Clamp(RippleIntensitySlider.Value, 0d, 2d),
             RippleSpread = Math.Clamp(RippleSpreadSlider.Value, 0.5d, 1.5d),

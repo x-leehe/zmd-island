@@ -4,8 +4,11 @@ public sealed record AppSettings
 {
     public double GlobalScale { get; init; } = 0.8;
 
-    /// <summary>HUD 总时长（秒）。前段入场动画保持固定节奏，停留段随该值伸缩。</summary>
-    public double DisplayDurationSeconds { get; init; } = 6.0;
+    /// <summary>等待态超时（秒）：状态 C 空闲多久后收缩为收缩态。</summary>
+    public double WaitingTimeoutSeconds { get; init; } = 4.0;
+
+    /// <summary>收缩态超时（秒）：收缩态空闲多久后隐藏。</summary>
+    public double ContractedTimeoutSeconds { get; init; } = 4.0;
 
     /// <summary>回弹强度 0~0.5。映射到 KS_BackOut 第二控制点 Y = 1 + 值，越大过冲越明显。</summary>
     public double BounceStrength { get; init; } = 0.275;
@@ -26,6 +29,9 @@ public sealed record AppSettings
     public bool EnableFullChargeAlert { get; init; } = true;
     public bool EnablePowerSaverNotify { get; init; } = true;
     public bool EnableAutoStart { get; init; } = false;
+
+    /// <summary>HUD 窗口置顶（灵动岛右键菜单「窗口置顶」可切换）。</summary>
+    public bool WindowTopmost { get; init; } = true;
 }
 
 public enum HudPosition

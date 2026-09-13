@@ -87,6 +87,14 @@
                     <Slider x:Name="ScaleSlider" Minimum="0.4" Maximum="1.2" TickFrequency="0.05"
                             Value="0.8" IsSnapToTickEnabled="False"/>
                   </StackPanel>
+                  <Border Height="1" Background="#2A2A2C"/>
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="3">
+                      <TextBlock x:Name="LabelTopmost" Text="窗口置顶" FontSize="13"/>
+                      <TextBlock x:Name="DescTopmostText" FontSize="11" Foreground="#888888"/>
+                    </StackPanel>
+                    <ToggleSwitch x:Name="WindowTopmostSwitch" Grid.Column="1"/>
+                  </Grid>
                 </StackPanel>
               </Border>
 
@@ -133,12 +141,22 @@
 
                   <StackPanel Spacing="5">
                     <Grid ColumnDefinitions="*,Auto">
-                      <TextBlock x:Name="LabelDuration" Text="显示时长（秒）" FontSize="12" Foreground="#888888"/>
-                      <TextBlock x:Name="DurationValue" Grid.Column="1" Text="6.0s" FontSize="12"
+                      <TextBlock x:Name="LabelWaitingTimeout" Text="等待态超时（秒）" FontSize="12" Foreground="#888888"/>
+                      <TextBlock x:Name="WaitingTimeoutValue" Grid.Column="1" Text="4.0s" FontSize="12"
                                  Foreground="#888888" Width="40" TextAlignment="Right"/>
                     </Grid>
-                    <Slider x:Name="DurationSlider" Minimum="3" Maximum="10" TickFrequency="0.5"
-                            Value="6" IsSnapToTickEnabled="False"/>
+                    <Slider x:Name="WaitingTimeoutSlider" Minimum="1" Maximum="30" TickFrequency="0.5"
+                            Value="4" IsSnapToTickEnabled="True"/>
+                  </StackPanel>
+
+                  <StackPanel Spacing="5">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock x:Name="LabelContractedTimeout" Text="收缩态超时（秒）" FontSize="12" Foreground="#888888"/>
+                      <TextBlock x:Name="ContractedTimeoutValue" Grid.Column="1" Text="4.0s" FontSize="12"
+                                 Foreground="#888888" Width="40" TextAlignment="Right"/>
+                    </Grid>
+                    <Slider x:Name="ContractedTimeoutSlider" Minimum="1" Maximum="30" TickFrequency="0.5"
+                            Value="4" IsSnapToTickEnabled="True"/>
                   </StackPanel>
 
                   <StackPanel Spacing="5">

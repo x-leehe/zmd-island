@@ -25,6 +25,8 @@
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <RuntimeIdentifier Condition="'$(Configuration)'=='Release'">win-x64</RuntimeIdentifier>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- reference/ 为外部参考仓库（LibreHardwareMonitor 等），不参与本项目编译 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);reference/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="EndfieldCharge.Views.IslandContextMenuWindow"
+        Width="440" Height="280"
+        SystemDecorations="None"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        CanResize="False"
+        Focusable="False"
+        WindowStartupLocation="Manual"
+        FontFamily="HarmonyOS Sans SC, HarmonyOS Sans, Inter, Microsoft YaHei UI, sans-serif">
+
+  <!-- 灵动岛右键菜单（illogical-impulse 风格）。
+       条目不再硬编码：代码里由 PluginMenuComposer 按
+       「插件内容区 → 分隔线 → 宿主固定项(窗口置顶/插件▸/设置)」动态生成，
+       窗口与表面尺寸、子菜单位置、钩子命中区都随生成的行数计算。
+       窗口上缘 12px 透明边距用于开场「从锚点边缘滑出」动画。
+       命中判定（WH_MOUSE_LL）只认两个可见表面，窗口内其余透明区域点击即关闭。 -->
+  <Canvas x:Name="ContentRoot" Opacity="0">
+    <Canvas.RenderTransform>
+      <TranslateTransform X="0" Y="-12"/>
+    </Canvas.RenderTransform>
+
+    <!-- ============ 主菜单表面（行由代码填充，高度随行数变化） ============ -->
+    <Border x:Name="MainSurface"
+            Canvas.Left="8" Canvas.Top="12"
+            Width="220"
+            CornerRadius="12" Background="#201F20"
+            BorderThickness="1" BorderBrush="#2A2A2C"
+            BoxShadow="0 1 9 #4D000000"
+            Padding="6">
+      <StackPanel x:Name="MenuStack" Spacing="2"/>
+    </Border>
+
+    <!-- ============ 插件子菜单（向右展开，初始隐藏；行由代码填充） ============ -->
+    <Border x:Name="SubSurface"
+            Width="200"
+            CornerRadius="12" Background="#201F20"
+            BorderThickness="1" BorderBrush="#2A2A2C"
+            BoxShadow="0 1 9 #4D000000"
+            Padding="6"
+            IsVisible="False">
+      <StackPanel x:Name="SubStack" Spacing="2"/>
+    </Border>
+
+  </Canvas>
+</Window>

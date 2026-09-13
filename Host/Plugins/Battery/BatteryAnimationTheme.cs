@@ -29,7 +29,8 @@ public sealed record AnimationOptions
 
     public static AnimationOptions FromSettings(AppSettings s) => new()
     {
-        DurationSeconds = Math.Clamp(s.DisplayDurationSeconds, 3d, 10d),
+        // 响应动画时长固定为基线节奏（不再读设置），等待/收缩由 T1/T2 超时驱动
+        DurationSeconds = HudAnimations.BaselineSeconds,
         BounceStrength = Math.Clamp(s.BounceStrength, 0d, 0.5d),
         RippleIntensity = Math.Clamp(s.RippleIntensity, 0d, 2d),
         RippleSpread = Math.Clamp(s.RippleSpread, 0.5d, 1.5d),
@@ -59,8 +60,8 @@ public sealed record AnimationOptions
 /// </summary>
 internal static class HudAnimations
 {
-    private const double BaselineSeconds = 6.0;
-    private const double IntroEndCue = 0.42;   // 入场段结束（电量数字淡入完成）
+    internal const double BaselineSeconds = 6.0;
+    private const double IntroEndCue = 0.42;
 
     private const double TStart = 0.04;
     private const double TAppear = 0.07;
@@ -334,6 +335,60 @@ internal static class HudAnimations
         a.Children.Add(KF(MapCueSimple(o, TSimpleHold), KS_In, SX(1d), SY(1d)));
         a.Children.Add(KF(MapCueSimple(o, TSimpleClose), KS_In, SX(0d), SY(0d)));
         return a;
+    }
+
+    // ---------------- 响应入场段（结束于状态 C） ----------------
+
+    /// <summary>
+    /// 完整三态响应的入场段：只保留映射后 cue ≤ IntroEndCue 的关键帧，
+    /// 并按 endCue 归一化（末帧落在 cue 1.0，动画铺满整个时长）。
+    /// 不跑 ScaleOut / Ripple / RippleRise（状态 C 无波纹、无整体缩放）。
+    /// 时长固定 2.82s（基线 2.52s + 300ms 减速）。
+    /// </summary>
+    public static Animation FullResponseIntro(AnimationOptions o, Animation full)
+    {
+        double mappedEnd = MapCue(o, IntroEndCue);
+        return TrimIntro(full, mappedEnd, FullResponseIntroSeconds);
+    }
+
+    /// <summary>简化响应（拔电）的入场段：内容淡入完成即状态 C，时长固定 0.7s（0.4s + 300ms）。</summary>
+    public static Animation SimpleResponseIntro(AnimationOptions o, Animation full)
+    {
+        double mappedEnd = MapCueSimple(o, SimpleIntroEndCue);
+        return TrimIntro(full, mappedEnd, SimpleResponseIntroSeconds);
+    }
+
+    private const double FullResponseIntroSeconds = 2.82;
+    private const double SimpleResponseIntroSeconds = 0.7;
+
+    /// <summary>
+    /// 裁剪动画：丢弃 cue &gt; endCue 的关键帧；剩余帧按 endCue 归一化
+    /// （cue / endCue，末帧 → 1.0），保持原 KeySpline——动画铺满整个 Duration。
+    /// </summary>
+    private static Animation TrimIntro(Animation full, double endCue, double durationSeconds)
+    {
+        var intro = new Animation
+        {
+            Duration = TimeSpan.FromSeconds(durationSeconds),
+            FillMode = FillMode.Forward,
+        };
+
+        foreach (var kf in full.Children)
+        {
+            if (kf.Cue.CueValue > endCue + 0.0001)
+                continue;
+
+            var copy = new KeyFrame
+            {
+                Cue = new Cue(kf.Cue.CueValue / endCue),
+                KeySpline = kf.KeySpline,
+            };
+            foreach (var s in kf.Setters)
+                copy.Setters.Add(s);
+            intro.Children.Add(copy);
+        }
+
+        return intro;
     }
 
     // ---------------- 构造辅助 ----------------
