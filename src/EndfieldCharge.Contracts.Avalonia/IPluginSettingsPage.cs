@@ -9,7 +9,7 @@ namespace EndfieldCharge.Contracts.Avalonia;
 /// </summary>
 public interface IPluginSettingsPage
 {
-    /// <summary>「插件」页里的条目名（如「音乐」）。</summary>
+    /// <summary>该插件设置的名字（面板自身负责展示标题；宿主在需要标识时使用）。</summary>
     string SettingsTitle { get; }
 
     /// <summary>创建设置面板视图（宿主每次打开设置窗口调用一次）。</summary>

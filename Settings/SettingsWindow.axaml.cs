@@ -315,7 +315,7 @@ public partial class SettingsWindow : Window
 
     // ---------------- 插件设置页 ----------------
 
-    /// <summary>列出贡献设置面板的插件（宿主只按 IPluginSettingsPage 契约认识它们）。</summary>
+    /// <summary>把所有贡献设置面板的插件面板依次堆叠展示；不做选择器（选择岛用鼠标滚轮）。</summary>
     private void InitPluginPages()
     {
         var pages = _hud.SettingsPages.ToList();
@@ -328,23 +328,7 @@ public partial class SettingsWindow : Window
         }
 
         foreach (var page in pages)
-        {
-            var btn = new Button
-            {
-                Content = page.SettingsTitle,
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-                Padding = new Thickness(12, 8),
-                CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush(Color.Parse("#262628")),
-                Foreground = Brushes.White,
-            };
-            btn.Click += (_, _) => PluginHost.Content = page.CreateSettingsView();
-            PluginList.Children.Add(btn);
-        }
-
-        // 默认展示第一个插件的设置面板
-        PluginHost.Content = pages[0].CreateSettingsView();
+            PluginPages.Children.Add(page.CreateSettingsView());
     }
 
     // ---------------- Tab 切换 ----------------

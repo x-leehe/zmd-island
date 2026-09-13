@@ -26,7 +26,7 @@
                      FontSize="16" FontWeight="SemiBold"
                      VerticalAlignment="Center" Foreground="#F0F0F0"/>
         </StackPanel>
-        <TextBlock Grid.Column="2" Text="EndfieldCharge" FontSize="11"
+        <TextBlock Grid.Column="2" Text="OVER THE FRONTIER/INTO THE FRONT" FontSize="11"
                    Foreground="#888888" VerticalAlignment="Center"/>
       </Grid>
     </Border>
@@ -79,12 +79,11 @@
         <ScrollViewer Margin="20,16,16,8">
           <StackPanel x:Name="ContentPanel" Spacing="0">
 
-            <!-- 插件 Tab：左侧插件条目 + 右侧插件自绘设置面板 -->
+            <!-- 插件 Tab：直接堆叠各插件自绘的设置面板（不做选择器——切岛用鼠标滚轮） -->
             <StackPanel x:Name="PluginsPanel" IsVisible="False" Spacing="14">
-              <StackPanel x:Name="PluginList" Spacing="6"/>
               <TextBlock x:Name="NoPluginSettingsText" FontSize="12" Foreground="#888888"
                          TextWrapping="Wrap" IsVisible="False"/>
-              <ContentControl x:Name="PluginHost"/>
+              <StackPanel x:Name="PluginPages" Spacing="14"/>
             </StackPanel>
 
             <!-- 通用 Tab -->

@@ -266,6 +266,9 @@ Plugins are the point of this architecture: the host knows nothing but the contr
   - `IIslandExpandToggle` for an in-island expand/collapse button.
   - `IContextMenuContributor` to add island/tray menu entries (aggregated by
     `Target` → `Section` → `Priority`).
+  - `IPluginSettingsPage` to contribute a self-titled settings panel to the settings window.
+    Plugins are selected on the island itself (mouse wheel), so the settings page only hosts
+    the panels.
   - `IPluginContext.GetService<IIslandHost>()` for `CurrentSkinId`, `WheelSkinIds`,
     `SwitchSkin(id)` and `ShowExpanded(id)` (used to pop the island when your content starts).
 - Register the plugin in `EndfieldCharge.csproj`: add a `ProjectReference` with
