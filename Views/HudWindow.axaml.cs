@@ -296,20 +296,40 @@ public partial class HudWindow : Window, IIslandHost
     }
 
     /// <summary>
-    /// 滚轮切换岛：上滚 = 上一个皮肤，下滚 = 下一个（循环）。
+    /// 滚轮切换岛，按「翻页」语义：每一档滚动 = 翻一页（切一个皮肤），不做手势判定。
+    /// 一次事件里若挤了多档（快速滚轮被系统合并）就翻同样多的页。
+    /// 边界行为与是否启用由设置项 <see cref="AppSettings.WheelSwitch"/> 决定（循环 / 到边界即停 / 禁用）。
     /// 窗口默认整窗穿透，只有指针在岛上时宿主才临时取消穿透，故滚轮只在岛上生效。
     /// </summary>
     private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
-        if (_skins.Count <= 1 || Math.Abs(e.Delta.Y) < 0.5)
+        if (_skins.Count <= 1)
             return;
 
-        int step = e.Delta.Y > 0 ? -1 : 1;
-        int index = _skins.IndexOf(_skin);
-        if (index < 0)
-            index = 0;
+        if (_settings.WheelSwitch == WheelSwitchMode.Disabled)
+            return;
 
-        SwitchTo(_skins[(index + step + _skins.Count) % _skins.Count]);
+        int pages = Math.Max(1, (int)Math.Round(Math.Abs(e.Delta.Y)));
+        int step = e.Delta.Y > 0 ? -1 : 1;
+
+        for (int i = 0; i < pages; i++)
+        {
+            int index = _skins.IndexOf(_skin);
+            if (index < 0)
+                index = 0;
+
+            int next = index + step;
+            if (next < 0 || next >= _skins.Count)
+            {
+                if (_settings.WheelSwitch == WheelSwitchMode.Clamp)
+                    break; // 到边界即停
+
+                next = (next + _skins.Count) % _skins.Count; // 循环
+            }
+
+            SwitchTo(_skins[next]);
+        }
+
         e.Handled = true;
     }
 
@@ -342,11 +362,16 @@ public partial class HudWindow : Window, IIslandHost
             _skin.PrepareRevealStart();
             ShowPositioned();
             _ = _skin.PlayResponseAsync(ct);
+            ScheduleExpandedCollapse(); // 展开态回落：由本入口显式排定，不再依赖指针轮询兜底
             return;
         }
 
         _ = EnterWaitingAsync(ct, IslandVisualState.Hidden);
     }
+
+    /// <summary>贡献设置面板的插件（设置窗口「插件」页用；宿主只按契约认识它们）。</summary>
+    public IReadOnlyList<IPluginSettingsPage> SettingsPages =>
+        _registry.Plugins.OfType<IPluginSettingsPage>().ToList();
 
     // ---------------- IIslandHost（宿主服务，插件经 IPluginContext.GetService<IIslandHost>() 取用） ----------------
 
@@ -447,13 +472,20 @@ public partial class HudWindow : Window, IIslandHost
     {
         CancelIdle();
 
+        // 记录皮肤与尺寸：便于区分「宿主状态」与「皮肤视图」不一致（如视图停在收缩态）
+        var metrics = _skin.CurrentMetrics;
+        Logger.Info($"Hud: 状态 {from} → {to}（皮肤 {_skin.Id}，{metrics.Width:F0}×{metrics.Height:F0}）");
+
         if (_switching)
             return; // 滚轮切换：状态归一与播放统一由 SwitchTo 驱动
 
         switch (to)
         {
             case IslandVisualState.Response:
-                // 动画由触发入口（TriggerResponseCoreAsync）播放
+                // 动画由触发入口（TriggerResponseCoreAsync）播放。
+                // 展开态是否/多久回落到等待态由皮肤自报（IIslandSkin.ExpandedTimeoutSeconds，
+                // 0 = 不回落）；音乐插件的「展开态超时」设置即通过它生效。
+                ScheduleExpandedCollapse();
                 break;
 
             case IslandVisualState.Waiting:
@@ -467,12 +499,9 @@ public partial class HudWindow : Window, IIslandHost
                 {
                     var ct = RefreshCts();
                     _ = _skin.PlayContractAsync(ct);
-                    if (_skin.AutoIdleTimeout)
-                    {
-                        ScheduleIdle(
-                            TimeSpan.FromSeconds(_settings.ContractedTimeoutSeconds),
-                            IslandVisualState.Hidden);
-                    }
+                    ScheduleIdle(
+                        TimeSpan.FromSeconds(_settings.ContractedTimeoutSeconds),
+                        IslandVisualState.Hidden);
                     break;
                 }
 
@@ -483,7 +512,7 @@ public partial class HudWindow : Window, IIslandHost
     }
 
     /// <summary>进入等待态：（宿主内容皮肤）刷新电量内容 →（自隐藏时）布置揭示起点并显示窗口 → 等待态动画。
-    /// T1 在动画完成后才排定，避免计时器切断揭示动画；常驻皮肤（AutoIdleTimeout=false）不排 T1。</summary>
+    /// T1 在动画完成后才排定，避免计时器切断揭示动画；与唤醒方式无关，所有皮肤一致。</summary>
     private async Task EnterWaitingAsync(CancellationToken ct, IslandVisualState from)
     {
         // 宿主内容皮肤（电池）：抓取一帧并绑定；自给数据皮肤（音乐 SMTC）跳过
@@ -505,16 +534,21 @@ public partial class HudWindow : Window, IIslandHost
         }
 
         await _skin.PlayWaitingAsync(ct);
-        if (ct.IsCancellationRequested)
-            return; // 揭示被预占/取消，不排 T1
 
-        // 揭示/展开/保持完成 → 排 T1（等待态超时）
-        if (_skin.AutoIdleTimeout)
+        if (ct.IsCancellationRequested)
         {
-            ScheduleIdle(
-                TimeSpan.FromSeconds(_settings.WaitingTimeoutSeconds),
-                IslandVisualState.Contracted);
+            // 诊断：揭示动画被后续切换打断（视图可能停在中间态）
+            Logger.Info($"Hud: 等待态播放被取消（{_skin.Id}）");
+            return; // 揭示被预占/取消，不排 T1
         }
+
+        var settled = _skin.CurrentMetrics;
+        Logger.Info($"Hud: 等待态就位（{_skin.Id}，{settled.Width:F0}×{settled.Height:F0}）");
+
+        // 揭示/展开/保持完成 → 排 T1（等待态生命周期的超时，与唤醒方式无关）
+        ScheduleIdle(
+            TimeSpan.FromSeconds(_settings.WaitingTimeoutSeconds),
+            IslandVisualState.Contracted);
     }
 
     /// <summary>退场到隐藏：中断动画 → 淡出 → 隐藏窗口。</summary>
@@ -532,6 +566,18 @@ public partial class HudWindow : Window, IIslandHost
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
         return _cts.Token;
+    }
+
+    /// <summary>展开态生命周期下限：每个状态都必须有超时，皮肤声明再小也按这个值执行。</summary>
+    private const double MinExpandedTimeoutSeconds = 3d;
+
+    /// <summary>按当前皮肤声明的展开态超时排定「回落到等待态」（低于下限则按下限执行）。</summary>
+    private void ScheduleExpandedCollapse()
+    {
+        double seconds = Math.Max(MinExpandedTimeoutSeconds, _skin.ExpandedTimeoutSeconds);
+
+        Logger.Info($"Hud: 展开态将在 {seconds:F0}s 无交互后回落到等待态（皮肤 {_skin.Id}）");
+        ScheduleIdle(TimeSpan.FromSeconds(seconds), IslandVisualState.Waiting);
     }
 
     /// <summary>
@@ -552,6 +598,7 @@ public partial class HudWindow : Window, IIslandHost
             if (gen != _idleGen)
                 return; // 已取消 / 已重排的过期回调
 
+            Logger.Info($"Hud: 空闲计时到期 → {_idleTarget}（皮肤 {_skin.Id}）");
             _sm.TryTransition(_idleTarget);
         };
         _idleTimer = timer;
@@ -565,11 +612,21 @@ public partial class HudWindow : Window, IIslandHost
         _idleTimer = null;
     }
 
-    /// <summary>若当前处于等待/收缩态则（重新）按设置排空闲计时；已有计时在跑则不重复排。</summary>
+    /// <summary>
+    /// 指针离开岛后按当前状态重排空闲计时（已有计时在跑则不重复排）。
+    /// 每个状态都有自己的生命周期超时，与该状态被何种方式唤醒无关：
+    /// 展开态 → 等待态（皮肤自报时长）、等待态 → 收缩态、收缩态 → 隐藏态。
+    /// </summary>
     private void ResumeIdleIfIdleState()
     {
         if (_idleTimer is { IsEnabled: true })
             return;
+
+        if (_sm.Current == IslandVisualState.Response)
+        {
+            ScheduleExpandedCollapse();
+            return;
+        }
 
         if (_sm.Current == IslandVisualState.Waiting)
         {
