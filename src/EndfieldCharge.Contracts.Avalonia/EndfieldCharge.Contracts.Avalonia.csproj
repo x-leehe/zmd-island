@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 「带 UI 的契约」程序集：皮肤契约（IIslandSkin）、设计 token、动画原语、图标几何资源。
+         外部插件要自带皮肤就必须引用它；它依赖 Avalonia（框架依赖，宿主已带）。 -->
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>EndfieldCharge.Contracts.Avalonia</AssemblyName>
+    <RootNamespace>EndfieldCharge.Contracts.Avalonia</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.1" />
+    <ProjectReference Include="..\EndfieldCharge.Contracts\EndfieldCharge.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Styles\**" />
+  </ItemGroup>
+
+</Project>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -9,6 +10,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using EndfieldCharge.Animations;
 using EndfieldCharge.Contracts;
+using EndfieldCharge.Contracts.Avalonia;
 using EndfieldCharge.Host.Island;
 using EndfieldCharge.Host.Plugins;
 using EndfieldCharge.Host.Plugins.Battery;
@@ -29,7 +31,7 @@ public enum HudPlayMode
 /// 岛的视觉树与动画由电池元插件皮肤（BatteryPlugin / BatteryIslandView）提供，
 /// 本类只负责窗口级职责并把播放委托给皮肤。
 /// </summary>
-public partial class HudWindow : Window
+public partial class HudWindow : Window, IIslandHost
 {
     private CancellationTokenSource? _cts;
     private AppSettings _settings = new();
@@ -39,8 +41,17 @@ public partial class HudWindow : Window
     private bool _fpsEnabled;
     private IslandContextMenuWindow? _contextMenu;
 
-    /// <summary>电池元插件：岛皮肤 + 内容映射（从注册表解析，保证与注册实例同一份）。</summary>
+    /// <summary>电池元插件：内容映射 + 默认皮肤（从注册表解析，保证与注册实例同一份）。</summary>
     private readonly BatteryPlugin _battery;
+
+    /// <summary>可轮转的岛皮肤（注册顺序 = 轮转顺序，电池在首位；皮肤可用特性把自己排除）。</summary>
+    private readonly List<IIslandSkin> _skins;
+
+    /// <summary>当前活动皮肤（电池 / 外部插件，如音乐）。</summary>
+    private IIslandSkin _skin = null!;
+
+    /// <summary>切换皮肤中：抑制状态机回调带来的重复播放（SwitchTo 自行驱动一次）。</summary>
+    private bool _switching;
 
     /// <summary>进程内插件注册表（菜单合成 / 皮肤解析）。</summary>
     private readonly IPluginRegistry _registry;
@@ -102,16 +113,17 @@ public partial class HudWindow : Window
     {
         var screen = ResolveScreen(_settings.MonitorIndex);
         double scaling = screen is { Scaling: > 0 } ? screen.Scaling : 1d;
-        double gs = Math.Clamp(_settings.GlobalScale, 0.1, 2d);
-
-        double w = _battery.PillWidthDips * gs * scaling;
-        double h = 60d * gs * scaling;
-        double cx = Position.X + Width / 2d * scaling;
-        double cy = Position.Y + Height / 2d * scaling;
+        var m = _skin.CurrentMetrics;
+        double gs = Math.Clamp(m.Scale, 0.1, 2d);
+        double w = m.Width * gs * scaling;
+        double h = m.Height * gs * scaling;
+        // 岛顶按皮肤上报的布局偏移对齐（+ 内部缩放原点带来的半量位移），各皮肤锚定一致
+        double x = Position.X + Width / 2d * scaling - w / 2d;
+        double y = Position.Y + (m.Top + m.Height * (1d - gs) / 2d) * scaling;
 
         return new PixelRect(
-            (int)Math.Round(cx - w / 2d),
-            (int)Math.Round(cy - h / 2d),
+            (int)Math.Round(x),
+            (int)Math.Round(y),
             (int)Math.Round(w),
             (int)Math.Round(h));
     }
@@ -122,16 +134,16 @@ public partial class HudWindow : Window
     {
         var screen = ResolveScreen(_settings.MonitorIndex);
         double scaling = screen is { Scaling: > 0 } ? screen.Scaling : 1d;
-        double gs = Math.Clamp(_settings.GlobalScale, 0.1, 2d);
-
-        double w = 560d * gs * scaling;
-        double h = 60d * gs * scaling;
-        double cx = Position.X + Width / 2d * scaling;
-        double cy = Position.Y + Height / 2d * scaling;
+        var m = _skin.HoverMetrics;
+        double gs = Math.Clamp(m.Scale, 0.1, 2d);
+        double w = m.Width * gs * scaling;
+        double h = m.Height * gs * scaling;
+        double x = Position.X + Width / 2d * scaling - w / 2d;
+        double y = Position.Y + (m.Top + m.Height * (1d - gs) / 2d) * scaling;
 
         return new PixelRect(
-            (int)Math.Round(cx - w / 2d),
-            (int)Math.Round(cy - h / 2d),
+            (int)Math.Round(x),
+            (int)Math.Round(y),
             (int)Math.Round(w),
             (int)Math.Round(h));
     }
@@ -229,12 +241,25 @@ public partial class HudWindow : Window
 
         _registry = registry;
         _battery = registry.Resolve<BatteryPlugin>() ?? new BatteryPlugin();
-        IslandHost.Content = _battery.View;
+
+        // 滚轮轮转集合：注册顺序即轮转顺序（电池在首位）。
+        // 皮肤把 ParticipatesInWheelSwitch 覆写为 false 即可把自己排除出轮转。
+        _skins = registry.Plugins.OfType<IIslandSkin>()
+            .Where(s => s.ParticipatesInWheelSwitch)
+            .ToList();
+        if (!_skins.Contains(_battery))
+            _skins.Insert(0, _battery);
+
+        // --demo-music：初始切到「音乐」插件皮肤（外部 DLL 已由 PluginLoader 载入并注册）；
+        // 宿主只按 IIslandSkin 契约认识它，不引用其具体类型。
+        bool musicDemo = Array.Exists(Environment.GetCommandLineArgs(), a => a == "--demo-music");
+        ActivateSkin(musicDemo ? FindSkinById("music") ?? _skins[0] : _skins[0]);
         _battery.RefreshLocalization();
 
         _sm.StateChanged += OnIslandStateChanged;
 
         PointerPressed += OnPointerPressed;
+        PointerWheelChanged += OnPointerWheelChanged;
 
         _fpsEnabled = Array.Exists(Environment.GetCommandLineArgs(), a => a == "--show-fps");
         if (_fpsEnabled)
@@ -242,6 +267,115 @@ public partial class HudWindow : Window
             FpsText.IsVisible = true;
             StartFpsCounter();
         }
+    }
+
+    // ---------------- 岛皮肤轮转（鼠标滚轮切换） ----------------
+
+    /// <summary>切换活动皮肤：换视觉树 / 窗口高度，缩放同步到全局缩放，并重挂展开按钮转发。</summary>
+    private void ActivateSkin(IIslandSkin skin)
+    {
+        if (!ReferenceEquals(_skin, skin) && _skin is IIslandExpandToggle old)
+            old.ExpandToggled -= OnExpandToggled;
+
+        _skin = skin;
+
+        if (skin is IIslandExpandToggle toggle)
+            toggle.ExpandToggled += OnExpandToggled;
+
+        IslandHost.Content = skin.View;
+        ApplyWindowHeight(skin.WindowHeight);
+        skin.ApplyScale(_settings.GlobalScale);
+    }
+
+    /// <summary>窗口高度随皮肤走（电池 160 / 音乐 220）。</summary>
+    private void ApplyWindowHeight(double height)
+    {
+        Height = height;
+        RootGrid.Height = height;
+        IslandHost.Height = height;
+    }
+
+    /// <summary>
+    /// 滚轮切换岛：上滚 = 上一个皮肤，下滚 = 下一个（循环）。
+    /// 窗口默认整窗穿透，只有指针在岛上时宿主才临时取消穿透，故滚轮只在岛上生效。
+    /// </summary>
+    private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (_skins.Count <= 1 || Math.Abs(e.Delta.Y) < 0.5)
+            return;
+
+        int step = e.Delta.Y > 0 ? -1 : 1;
+        int index = _skins.IndexOf(_skin);
+        if (index < 0)
+            index = 0;
+
+        SwitchTo(_skins[(index + step + _skins.Count) % _skins.Count]);
+        e.Handled = true;
+    }
+
+    /// <summary>切到指定皮肤并重播等待态（滚轮切换）。</summary>
+    private void SwitchTo(IIslandSkin skin) => SwitchTo(skin, expanded: false);
+
+    /// <summary>
+    /// 切换皮肤并按需以「展开态」展示（expanded = 走响应态而非等待态）。
+    /// 切换期间抑制状态机回调，播放统一在这里驱动一次。
+    /// </summary>
+    private void SwitchTo(IIslandSkin skin, bool expanded)
+    {
+        _switching = true;
+        try
+        {
+            ActivateSkin(skin);
+            _sm.Force(expanded ? IslandVisualState.Response : IslandVisualState.Waiting);
+        }
+        finally
+        {
+            _switching = false;
+        }
+
+        Logger.Info(expanded ? $"Hud: 展开岛 → {skin.Id}" : $"Hud: 滚轮切换岛 → {skin.Id}");
+
+        var ct = RefreshCts();
+
+        if (expanded)
+        {
+            _skin.PrepareRevealStart();
+            ShowPositioned();
+            _ = _skin.PlayResponseAsync(ct);
+            return;
+        }
+
+        _ = EnterWaitingAsync(ct, IslandVisualState.Hidden);
+    }
+
+    // ---------------- IIslandHost（宿主服务，插件经 IPluginContext.GetService<IIslandHost>() 取用） ----------------
+
+    public string CurrentSkinId => _skin.Id;
+
+    public IReadOnlyList<string> WheelSkinIds => _skins.Select(s => s.Id).ToArray();
+
+    public bool SwitchSkin(string id)
+    {
+        var target = _skins.FirstOrDefault(s => s.Id == id) ?? FindSkinById(id);
+        if (target is null || ReferenceEquals(target, _skin))
+            return false;
+
+        SwitchTo(target);
+        return true;
+    }
+
+    public bool ShowExpanded(string id)
+    {
+        var target = _skins.FirstOrDefault(s => s.Id == id) ?? FindSkinById(id);
+        if (target is null)
+            return false;
+
+        // 已经是该皮肤的展开态：不重播动画
+        if (ReferenceEquals(target, _skin) && _sm.Current == IslandVisualState.Response)
+            return true;
+
+        SwitchTo(target, expanded: true);
+        return true;
     }
 
     /// <summary>岛内按键：右键打开自定义上下文菜单；其他按键（含左键）维持原有消失行为。</summary>
@@ -299,7 +433,7 @@ public partial class HudWindow : Window
         Topmost = settings.WindowTopmost;
 
         // 全局缩放 + 本地化文案（可能语言变了）→ 皮肤
-        _battery.ApplyScale(settings.GlobalScale);
+        _skin.ApplyScale(settings.GlobalScale);
         _battery.RefreshLocalization();
 
         // 超时变更：正在计时的状态按新值重排
@@ -312,6 +446,9 @@ public partial class HudWindow : Window
     private void OnIslandStateChanged(IslandVisualState from, IslandVisualState to)
     {
         CancelIdle();
+
+        if (_switching)
+            return; // 滚轮切换：状态归一与播放统一由 SwitchTo 驱动
 
         switch (to)
         {
@@ -329,10 +466,13 @@ public partial class HudWindow : Window
             case IslandVisualState.Contracted:
                 {
                     var ct = RefreshCts();
-                    _ = _battery.PlayContractAsync(ct);
-                    ScheduleIdle(
-                        TimeSpan.FromSeconds(_settings.ContractedTimeoutSeconds),
-                        IslandVisualState.Hidden);
+                    _ = _skin.PlayContractAsync(ct);
+                    if (_skin.AutoIdleTimeout)
+                    {
+                        ScheduleIdle(
+                            TimeSpan.FromSeconds(_settings.ContractedTimeoutSeconds),
+                            IslandVisualState.Hidden);
+                    }
                     break;
                 }
 
@@ -342,39 +482,46 @@ public partial class HudWindow : Window
         }
     }
 
-    /// <summary>进入等待态：刷新电量内容 →（自隐藏时）布置揭示起点并显示窗口 → 等待态动画。
-    /// T1 在动画完成后才排定，避免计时器切断揭示动画。</summary>
+    /// <summary>进入等待态：（宿主内容皮肤）刷新电量内容 →（自隐藏时）布置揭示起点并显示窗口 → 等待态动画。
+    /// T1 在动画完成后才排定，避免计时器切断揭示动画；常驻皮肤（AutoIdleTimeout=false）不排 T1。</summary>
     private async Task EnterWaitingAsync(CancellationToken ct, IslandVisualState from)
     {
-        var snap = await _battery.FetchSnapshotAsync();
-        if (ct.IsCancellationRequested)
-            return; // 期间被响应预占
+        // 宿主内容皮肤（电池）：抓取一帧并绑定；自给数据皮肤（音乐 SMTC）跳过
+        if (_skin.UsesHostContent)
+        {
+            var snap = await _battery.FetchSnapshotAsync();
+            if (ct.IsCancellationRequested)
+                return; // 期间被响应预占
 
-        _battery.BindContent(_battery.CreateDescriptor(snap, powerSaver: false, IslandPlayKind.Simple));
+            _skin.BindContent(_battery.CreateDescriptor(snap, powerSaver: false, IslandPlayKind.Simple));
+        }
 
         // 仅隐藏 → 等待需要布置揭示起点（窗口首帧即起点状态，无整只胶囊闪现）+ 显示窗口；
         // 响应 → 等待 / 收缩 → 等待时窗口已可见，直接交给 PlayWaitingAsync（保持/展开）。
         if (from == IslandVisualState.Hidden)
         {
-            _battery.PrepareRevealStart();
+            _skin.PrepareRevealStart();
             ShowPositioned();
         }
 
-        await _battery.PlayWaitingAsync(ct);
+        await _skin.PlayWaitingAsync(ct);
         if (ct.IsCancellationRequested)
             return; // 揭示被预占/取消，不排 T1
 
         // 揭示/展开/保持完成 → 排 T1（等待态超时）
-        ScheduleIdle(
-            TimeSpan.FromSeconds(_settings.WaitingTimeoutSeconds),
-            IslandVisualState.Contracted);
+        if (_skin.AutoIdleTimeout)
+        {
+            ScheduleIdle(
+                TimeSpan.FromSeconds(_settings.WaitingTimeoutSeconds),
+                IslandVisualState.Contracted);
+        }
     }
 
     /// <summary>退场到隐藏：中断动画 → 淡出 → 隐藏窗口。</summary>
     private async Task PlayDismissAndHideAsync()
     {
         _cts?.Cancel();
-        await _battery.PlayDismissAsync(CancellationToken.None);
+        await _skin.PlayDismissAsync(CancellationToken.None);
         Hide();
     }
 
@@ -448,6 +595,10 @@ public partial class HudWindow : Window
         bool powerSaver,
         AnimationOptions? options)
     {
+        // 电池事件（插拔电 / 省电切换）：若当前停在自给数据皮肤（音乐）上，先切回宿主内容皮肤
+        if (!_skin.UsesHostContent)
+            ActivateSkin(_skins.FirstOrDefault(s => s.UsesHostContent) ?? _battery);
+
         if (_sm.Current != IslandVisualState.Response)
         {
             if (!_sm.TryTransition(IslandVisualState.Response))
@@ -473,7 +624,7 @@ public partial class HudWindow : Window
             return;
         }
 
-        await _battery.PlayResponseAsync(ct);
+        await _skin.PlayResponseAsync(ct);
 
         if (ct.IsCancellationRequested)
             return;
@@ -521,6 +672,48 @@ public partial class HudWindow : Window
 
         _sm.Force(IslandVisualState.Hidden);
         await Task.CompletedTask;
+    }
+
+    /// <summary>启动音乐模式（--demo-music）：进入等待态；数据由音乐插件自行轮询 SMTC。</summary>
+    public Task StartMusicDemoAsync()
+    {
+        if (_sm.Current != IslandVisualState.Waiting)
+            _sm.Force(IslandVisualState.Waiting);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>按插件 Id 找皮肤（外部插件不在宿主编译期类型系统里）。</summary>
+    private IIslandSkin? FindSkinById(string id)
+    {
+        foreach (var plugin in _registry.Plugins)
+        {
+            if (plugin.Id == id && plugin is IIslandSkin skin)
+                return skin;
+        }
+        return null;
+    }
+
+    /// <summary>岛内「展开 / 收起」按钮（IIslandExpandToggle）→ 等待态 ↔ 展开态（复用 Response 状态）。</summary>
+    private void OnExpandToggled()
+    {
+        if (_sm.Current == IslandVisualState.Waiting)
+        {
+            if (_sm.TryTransition(IslandVisualState.Response))
+            {
+                var ct = RefreshCts();
+                _ = PlayMusicResponseAsync(ct);
+            }
+        }
+        else if (_sm.Current == IslandVisualState.Response)
+        {
+            _sm.TryTransition(IslandVisualState.Waiting);
+        }
+    }
+
+    private async Task PlayMusicResponseAsync(CancellationToken ct)
+    {
+        ShowPositioned();
+        await _skin.PlayResponseAsync(ct);
     }
 
     // ---------------- FPS 计数器 ----------------

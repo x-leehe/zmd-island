@@ -4,6 +4,7 @@ using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Styling;
+using EndfieldCharge.Host.Island.Animation;
 using EndfieldCharge.Settings;
 
 namespace EndfieldCharge.Animations;
@@ -78,36 +79,31 @@ internal static class HudAnimations
     private const double TNumIn = 0.38;     // 电量数字开始淡入（等 C 态稳定后约 0.1s）
     private const double TNumReady = 0.42;  // 电量数字淡入完成
 
-    private const double PillRadiusA = 30d;
-    private const double PillRadiusB = 18d;
-    private const double PillHeightA = 60d;   // 状态 A 与 C（圆胶囊等高）
-    private const double PillHeightB = 90d;   // 状态 B（工业模式高矩形）
+    // 胶囊几何取自共享设计 token；电标偏移为电池皮肤专有。
+    private const double PillRadiusA = DesignTokens.RadiusRound;
+    private const double PillRadiusB = DesignTokens.RadiusRect;
+    private const double PillHeightA = DesignTokens.PillHeight;      // 状态 A 与 C（圆胶囊等高）
+    private const double PillHeightB = DesignTokens.PillHeightTall;  // 状态 B（工业模式高矩形）
     private const double IconOffsetB = -179d; // 状态 B：pill 560 宽，内 18% 处 → 600-0.32×560=420.8
     private const double IconOffsetC = -245d; // 状态 C：pill 左内 26 + 半方块 9 = 355 → TX=355-600
 
-    private static readonly KeySpline KS_In = new(0.42, 0, 1, 1);
-    private static readonly KeySpline KS_Out = new(0, 0, 0.58, 1);
-    private static readonly KeySpline KS_InOut = new(0.42, 0, 0.58, 1);
+    // 缓动曲线取自共享原语（语言统一）。
+    private static readonly KeySpline KS_In = AnimationPrimitives.EaseIn;
+    private static readonly KeySpline KS_Out = AnimationPrimitives.EaseOut;
+    private static readonly KeySpline KS_InOut = AnimationPrimitives.EaseInOut;
     /// <summary>easeInOutCubic：位移专用——两端慢中间快，且不过冲，滑动观感最顺。</summary>
-    private static readonly KeySpline KS_Smooth = new(0.65, 0, 0.35, 1);
+    private static readonly KeySpline KS_Smooth = AnimationPrimitives.Smooth;
 
     /// <summary>回弹曲线：过冲量由 BounceStrength 控制（0 = 无过冲的快出曲线）。</summary>
-    private static KeySpline BackOut(AnimationOptions o) =>
-        new(0.175, 0.885, 0.32, 1d + o.BounceStrength);
+    private static KeySpline BackOut(AnimationOptions o) => AnimationPrimitives.BackOut(o.BounceStrength);
 
     /// <summary>
     /// 基线 cue → 实际时间线 cue。
     /// 入场段（≤0.42）固定占 0.42×6s=2.52s，剩余时间全给停留+退出段线性分配。
     /// DurationSeconds=6 时为恒等映射。
     /// </summary>
-    private static double MapCue(AnimationOptions o, double cue)
-    {
-        double d = Math.Clamp(o.DurationSeconds, 3d, 10d);
-        double introFrac = IntroEndCue * BaselineSeconds / d;
-        if (cue <= IntroEndCue)
-            return cue / IntroEndCue * introFrac;
-        return introFrac + (cue - IntroEndCue) / (1 - IntroEndCue) * (1 - introFrac);
-    }
+    private static double MapCue(AnimationOptions o, double cue) =>
+        AnimationPrimitives.MapCue(cue, IntroEndCue, BaselineSeconds, o.DurationSeconds);
 
     // ===================================================================
 
@@ -294,14 +290,8 @@ internal static class HudAnimations
     private const double TSimpleHold = 0.75;    // 停留结束
     private const double TSimpleClose = 0.80;   // 收回完成（scale 1→0）
 
-    private static double MapCueSimple(AnimationOptions o, double cue)
-    {
-        double d = Math.Clamp(o.DurationSeconds, 3d, 10d);
-        double introFrac = SimpleIntroEndCue * SimpleBaselineSeconds / d;
-        if (cue <= SimpleIntroEndCue)
-            return cue / SimpleIntroEndCue * introFrac;
-        return introFrac + (cue - SimpleIntroEndCue) / (1 - SimpleIntroEndCue) * (1 - introFrac);
-    }
+    private static double MapCueSimple(AnimationOptions o, double cue) =>
+        AnimationPrimitives.MapCue(cue, SimpleIntroEndCue, SimpleBaselineSeconds, o.DurationSeconds);
 
     /// <summary>胶囊弹出：scale 0.6→1 + op 0→1（KS_Out 避免过冲闪屏），停留后保持。</summary>
     public static Animation SimplePillAppear(AnimationOptions o)
@@ -365,63 +355,24 @@ internal static class HudAnimations
     /// 裁剪动画：丢弃 cue &gt; endCue 的关键帧；剩余帧按 endCue 归一化
     /// （cue / endCue，末帧 → 1.0），保持原 KeySpline——动画铺满整个 Duration。
     /// </summary>
-    private static Animation TrimIntro(Animation full, double endCue, double durationSeconds)
-    {
-        var intro = new Animation
-        {
-            Duration = TimeSpan.FromSeconds(durationSeconds),
-            FillMode = FillMode.Forward,
-        };
-
-        foreach (var kf in full.Children)
-        {
-            if (kf.Cue.CueValue > endCue + 0.0001)
-                continue;
-
-            var copy = new KeyFrame
-            {
-                Cue = new Cue(kf.Cue.CueValue / endCue),
-                KeySpline = kf.KeySpline,
-            };
-            foreach (var s in kf.Setters)
-                copy.Setters.Add(s);
-            intro.Children.Add(copy);
-        }
-
-        return intro;
-    }
+    private static Animation TrimIntro(Animation full, double endCue, double durationSeconds) =>
+        AnimationPrimitives.Trim(full, endCue, durationSeconds);
 
     // ---------------- 构造辅助 ----------------
 
-    private static Animation New(AnimationOptions o) => new()
-    {
-        Duration = TimeSpan.FromSeconds(Math.Clamp(o.DurationSeconds, 3d, 10d)),
-        FillMode = FillMode.Forward,
-    };
+    // 全部委托共享动画原语（实现已移入 Host/Island/Animation/AnimationPrimitives）。
+    private static Animation New(AnimationOptions o) => AnimationPrimitives.AnimationNew(o.DurationSeconds);
 
-    private static Animation NewSimple(AnimationOptions o) => new()
-    {
-        Duration = TimeSpan.FromSeconds(Math.Clamp(o.DurationSeconds, 3d, 10d)),
-        FillMode = FillMode.Forward,
-    };
+    private static Animation NewSimple(AnimationOptions o) => AnimationPrimitives.AnimationNew(o.DurationSeconds);
 
-    private static KeyFrame KF(double cue, KeySpline? ks, params Setter[] setters)
-    {
-        var kf = new KeyFrame { Cue = new Cue(cue) };
-        if (ks is not null)
-            kf.KeySpline = ks;
-        foreach (var s in setters)
-            kf.Setters.Add(s);
-        return kf;
-    }
+    private static KeyFrame KF(double cue, KeySpline? ks, params Setter[] setters) =>
+        AnimationPrimitives.KeyFrame(cue, ks, setters);
 
-    private static Setter Op(double v) => Set(Visual.OpacityProperty, v);
-    private static Setter TX(double v) => Set(TranslateTransform.XProperty, v);
-    private static Setter TY(double v) => Set(TranslateTransform.YProperty, v);
-    private static Setter SX(double v) => Set(ScaleTransform.ScaleXProperty, v);
-    private static Setter SY(double v) => Set(ScaleTransform.ScaleYProperty, v);
-    private static Setter CR(double v) => Set(Border.CornerRadiusProperty, new CornerRadius(v));
-    private static Setter H(double v) => Set(Border.HeightProperty, v);
-
-    private static Setter Set(AvaloniaProperty property, object value) => new(property, value);
+    private static Setter Op(double v) => AnimationPrimitives.Opacity(v);
+    private static Setter TX(double v) => AnimationPrimitives.TranslateX(v);
+    private static Setter TY(double v) => AnimationPrimitives.TranslateY(v);
+    private static Setter SX(double v) => AnimationPrimitives.ScaleX(v);
+    private static Setter SY(double v) => AnimationPrimitives.ScaleY(v);
+    private static Setter CR(double v) => AnimationPrimitives.CornerRadius(v);
+    private static Setter H(double v) => AnimationPrimitives.Height(v);
 }

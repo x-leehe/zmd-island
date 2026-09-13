@@ -1,0 +1,410 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
+using EndfieldCharge.Contracts;
+using EndfieldCharge.Services;
+using Windows.Media.Control;
+
+namespace EndfieldCharge.Host.Plugins.Music;
+
+/// <summary>SMTC 连接状态。</summary>
+public enum SmtcConnectionState
+{
+    /// <summary>正在连接（含退避重试中）。</summary>
+    Connecting,
+
+    /// <summary>已连接：之后完全由事件驱动，不再轮询。</summary>
+    Connected,
+
+    /// <summary>快速重试已用尽，降级为不可用（岛内明确提示），仅保留慢速自愈。</summary>
+    Unavailable,
+}
+
+/// <summary>
+/// SMTC（Windows 媒体会话）数据源——<strong>事件驱动</strong>：
+/// <list type="bullet">
+/// <item>连接：<c>RequestAsync()</c> 失败按 5s 退避重试，12 次（≈1 分钟）后降级为
+/// <see cref="SmtcConnectionState.Unavailable"/>（岛内提示「未连接 SMTC」），之后每 60s 慢速自愈；
+/// 成功则彻底停表。</item>
+/// <item>变化：订阅 manager 的 <c>SessionsChanged</c> / <c>CurrentSessionChanged</c> 与 session 的
+/// <c>MediaPropertiesChanged</c> / <c>PlaybackInfoChanged</c> / <c>TimelinePropertiesChanged</c>，
+/// 事件一到才重读一帧并经 <see cref="FrameChanged"/> 发布——不再每秒轮询 SMTC。</item>
+/// <item>进度：<c>TimelinePropertiesChanged</c> 只在 seek 时触发，平滑推进由
+/// <see cref="Interpolate"/> 本地插值（位置 + 经过时间 × 速率，不访问 SMTC）。</item>
+/// </list>
+/// 无会话 → 空态（<see cref="MusicFrame.Empty"/>，不显示假数据）。
+/// </summary>
+public sealed class SmtcMediaSource : IDisposable
+{
+    private static readonly TimeSpan FastRetry = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan SlowRetry = TimeSpan.FromSeconds(60);
+    private const int MaxFastAttempts = 12;
+
+    private readonly DispatcherTimer _connectTimer;
+    private readonly HashSet<GlobalSystemMediaTransportControlsSession> _attached = new();
+
+    private int _attempts;
+    private bool _connecting;
+    private bool _started;
+    private bool _disposed;
+
+    private GlobalSystemMediaTransportControlsSessionManager? _manager;
+
+    private MusicFrame _frame = MusicFrame.Empty;
+
+    // ---- 本地进度插值基准（仅 ResyncAsync 写，Interpolate 读） ----
+    private TimeSpan _position;
+    private TimeSpan _duration;
+    private double _rate = 1d;
+    private DateTime _stampUtc = DateTime.UtcNow;
+
+    // ---- 封面：当前 + 上一张（等 UI 换绑后再释放） ----
+    private Bitmap? _cover;
+    private Bitmap? _previousCover;
+    private string? _coverKey;
+
+    /// <param name="connectOnStartup">
+    /// <c>true</c> = 构造即连接；<c>false</c> = 懒连接（由 <see cref="Start"/> 触发，例如皮肤首次激活）。
+    /// </param>
+    public SmtcMediaSource(bool connectOnStartup)
+    {
+        _connectTimer = new DispatcherTimer { Interval = FastRetry };
+        _connectTimer.Tick += (_, _) => _ = ConnectAsync();
+
+        if (connectOnStartup)
+            Start();
+    }
+
+    /// <summary>开始连接（幂等）：可构造函数即调（启动即连），或在皮肤首次激活时调（懒连接）。</summary>
+    public void Start()
+    {
+        if (_disposed || _started)
+            return;
+
+        _started = true;
+        _connectTimer.Start();
+        _ = ConnectAsync(); // 立即尝试一次
+    }
+
+    /// <summary>连接状态。</summary>
+    public SmtcConnectionState State { get; private set; } = SmtcConnectionState.Connecting;
+
+    /// <summary>当前是否正在播放（宿主据此决定要不要跑进度插值 tick）。</summary>
+    public bool IsPlaying => _frame.IsPlaying;
+
+    /// <summary>内容变化：连接状态 / 曲目 / 封面 / 播放态 / seek，以及空态与不可用降级态。</summary>
+    public event Action<MusicFrame>? FrameChanged;
+
+    /// <summary>本地插值出当前帧：播放中按 <c>位置 + 经过时间 × 速率</c> 推进，纯本地计算（不访问 SMTC）。</summary>
+    public MusicFrame Interpolate()
+    {
+        if (!_frame.IsPlaying || _duration <= TimeSpan.Zero)
+            return _frame;
+
+        var pos = _position + TimeSpan.FromSeconds((DateTime.UtcNow - _stampUtc).TotalSeconds * _rate);
+        if (pos < TimeSpan.Zero)
+            pos = TimeSpan.Zero;
+        else if (pos > _duration)
+            pos = _duration;
+
+        return _frame with { Progress = pos.TotalSeconds / _duration.TotalSeconds };
+    }
+
+    // ---------------- 传输控制 ----------------
+
+    public async Task PlayPauseAsync()
+    {
+        var s = _manager?.GetCurrentSession();
+        if (s is null) return;
+        try { await s.TryTogglePlayPauseAsync(); }
+        catch (Exception ex) { Logger.Warn($"SMTC 播放暂停失败：{ex.Message}"); }
+    }
+
+    public async Task NextAsync()
+    {
+        var s = _manager?.GetCurrentSession();
+        if (s is null) return;
+        try { await s.TrySkipNextAsync(); }
+        catch (Exception ex) { Logger.Warn($"SMTC 下一曲失败：{ex.Message}"); }
+    }
+
+    public async Task PreviousAsync()
+    {
+        var s = _manager?.GetCurrentSession();
+        if (s is null) return;
+        try { await s.TrySkipPreviousAsync(); }
+        catch (Exception ex) { Logger.Warn($"SMTC 上一曲失败：{ex.Message}"); }
+    }
+
+    // ---------------- 连接（失败的退避重试 + 封顶后的慢速自愈） ----------------
+
+    private async Task ConnectAsync()
+    {
+        if (_disposed || _connecting || _manager is not null)
+            return;
+
+        _connecting = true;
+        try
+        {
+            var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            if (manager is null)
+            {
+                OnConnectFailed("RequestAsync 返回 null");
+                return;
+            }
+
+            _manager = manager;
+
+            // 事件驱动：会话集 / 当前会话一变就重新同步（"先开机、后开播放器"由此覆盖）
+            _manager.SessionsChanged += (_, _) => Resync();
+            _manager.CurrentSessionChanged += (_, _) => Resync();
+
+            State = SmtcConnectionState.Connected;
+            _connectTimer.Stop();
+            Logger.Info("Music: SMTC 已连接（事件驱动，不再轮询）");
+
+            await ResyncAsync(); // 立刻同步一帧（可能为"无会话"空态）
+        }
+        catch (Exception ex)
+        {
+            OnConnectFailed(ex.Message);
+        }
+        finally
+        {
+            _connecting = false;
+        }
+    }
+
+    private void OnConnectFailed(string reason)
+    {
+        _attempts++;
+
+        if (_attempts < MaxFastAttempts)
+        {
+            // 只在前两次留痕，之后静默重试（避免刷屏）
+            if (_attempts <= 2)
+                Logger.Warn($"SMTC 连接失败（第 {_attempts}/{MaxFastAttempts} 次，{FastRetry.TotalSeconds:F0}s 后重试）：{reason}");
+            return;
+        }
+
+        if (State != SmtcConnectionState.Unavailable)
+        {
+            State = SmtcConnectionState.Unavailable;
+            _connectTimer.Interval = SlowRetry; // 降级后只做慢速自愈
+            Logger.Warn($"SMTC 快速重试已用尽（{MaxFastAttempts} 次），降级为不可用；之后每 {SlowRetry.TotalSeconds:F0}s 静默自愈。原因：{reason}");
+            SetFrame(MusicFrame.Unavailable());
+            return;
+        }
+
+        // 慢速自愈失败：静默（避免每分钟一条噪声）
+    }
+
+    // ---------------- 事件 → 重新同步 ----------------
+
+    /// <summary>任何 SMTC 事件都走这里：回 UI 线程重读一帧（事件可能在线程池/MTA 上触发）。</summary>
+    private void Resync()
+    {
+        if (_disposed)
+            return;
+
+        if (Dispatcher.UIThread.CheckAccess())
+            _ = ResyncAsync();
+        else
+            Dispatcher.UIThread.Post(() => _ = ResyncAsync());
+    }
+
+    private async Task ResyncAsync()
+    {
+        if (_disposed || _manager is null)
+            return;
+
+        try
+        {
+            var session = PickSession();
+            AttachSession(session);
+
+            if (session is null)
+            {
+                _duration = TimeSpan.Zero;
+                _position = TimeSpan.Zero;
+                SetFrame(MusicFrame.Empty); // 无会话：空态
+                return;
+            }
+
+            var props = await session.TryGetMediaPropertiesAsync();
+            var timeline = session.GetTimelineProperties();
+            var info = session.GetPlaybackInfo();
+
+            _duration = timeline.EndTime - timeline.StartTime;
+            if (_duration < TimeSpan.Zero)
+                _duration = TimeSpan.Zero;
+
+            _position = timeline.Position - timeline.StartTime;
+            if (_position < TimeSpan.Zero)
+                _position = TimeSpan.Zero;
+
+            _rate = ReadRate(info);
+            _stampUtc = DateTime.UtcNow;
+
+            SetFrame(new MusicFrame
+            {
+                Title = props.Title,
+                Artist = props.Artist,
+                LyricCurrent = null, // 歌词模块后续接入
+                Progress = _duration > TimeSpan.Zero
+                    ? Math.Clamp(_position.TotalSeconds / _duration.TotalSeconds, 0d, 1d)
+                    : 0d,
+                IsPlaying = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing,
+                Cover = await LoadCoverAsync(props),
+                Spectrum = null, // 频谱模块后续接入
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"SMTC 读取失败：{ex.Message}");
+            SetFrame(MusicFrame.Empty);
+        }
+    }
+
+    /// <summary>优先取「正在播放」的会话，否则退回当前会话（比只听 CurrentSession 稳）。</summary>
+    private GlobalSystemMediaTransportControlsSession? PickSession()
+    {
+        var manager = _manager;
+        if (manager is null)
+            return null;
+
+        var current = manager.GetCurrentSession();
+        if (IsPlayingSession(current))
+            return current;
+
+        try
+        {
+            foreach (var s in manager.GetSessions())
+            {
+                if (IsPlayingSession(s))
+                    return s;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"SMTC 枚举会话失败：{ex.Message}");
+        }
+
+        return current;
+    }
+
+    private static bool IsPlayingSession(GlobalSystemMediaTransportControlsSession? session)
+    {
+        try
+        {
+            return session is not null
+                && session.GetPlaybackInfo().PlaybackStatus
+                    == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>播放速率（倍速）。类型在不同 SDK 投影下可能是 double / double?，用装箱兜住两种。</summary>
+    private static double ReadRate(GlobalSystemMediaTransportControlsSessionPlaybackInfo info)
+    {
+        try
+        {
+            object? raw = info.PlaybackRate;
+            return raw is double d && d > 0d ? d : 1d;
+        }
+        catch
+        {
+            return 1d;
+        }
+    }
+
+    /// <summary>
+    /// 挂钩会话事件：同一会话只挂一次（用集合去重，避免会话来回切换时重复订阅）。
+    /// 订阅用 lambda，无法逐个 <c>-=</c>；<see cref="Dispose"/> 靠 <c>_disposed</c> 守卫让其空转。
+    /// </summary>
+    private void AttachSession(GlobalSystemMediaTransportControlsSession? session)
+    {
+        if (session is null || !_attached.Add(session))
+            return;
+
+        session.MediaPropertiesChanged += (_, _) => Resync();
+        session.PlaybackInfoChanged += (_, _) => Resync();
+        session.TimelinePropertiesChanged += (_, _) => Resync();
+    }
+
+    private void SetFrame(MusicFrame frame)
+    {
+        _frame = frame;
+
+        var handler = FrameChanged;
+        if (handler is null)
+            return;
+
+        if (Dispatcher.UIThread.CheckAccess())
+            handler(frame);
+        else
+            Dispatcher.UIThread.Post(() => handler(frame));
+    }
+
+    // ---------------- 封面 ----------------
+
+    /// <summary>封面按「曲目+艺术家+专辑」缓存，避免同曲重复解码。</summary>
+    private async Task<Bitmap?> LoadCoverAsync(GlobalSystemMediaTransportControlsSessionMediaProperties props)
+    {
+        try
+        {
+            string key = $"{props.Title}|{props.Artist}|{props.AlbumTitle}";
+            if (key == _coverKey)
+                return _cover;
+
+            if (props.Thumbnail is null)
+            {
+                _coverKey = key;
+                RetireCover(null);
+                return null;
+            }
+
+            using var ras = await props.Thumbnail.OpenReadAsync();
+            using var net = ras.AsStreamForRead();
+            var bitmap = new Bitmap(net);
+
+            _coverKey = key;
+            RetireCover(bitmap);
+            return _cover;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"SMTC 封面解码失败：{ex.Message}");
+            return _cover;
+        }
+    }
+
+    /// <summary>
+    /// 换封面：旧的那张留到<strong>下一次</strong>换封面时才释放。
+    /// 立即释放会让三个 <c>Image.Source</c> 指向已释放的位图（渲染线程可能踩到）。
+    /// </summary>
+    private void RetireCover(Bitmap? next)
+    {
+        _previousCover?.Dispose();
+        _previousCover = _cover;
+        _cover = next;
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _connectTimer.Stop();
+        _manager = null;
+
+        _cover?.Dispose();
+        _cover = null;
+        _previousCover?.Dispose();
+        _previousCover = null;
+    }
+}

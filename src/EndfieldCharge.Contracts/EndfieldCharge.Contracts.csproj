@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 契约程序集：只依赖 BCL（不引 Avalonia、不引任何 NuGet 包）。
+         宿主与「外部插件 DLL」共同引用它，从而保证 IPlugin 等类型的标识统一，
+         插件无需（也不允许）引用整个 App。 -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>EndfieldCharge.Contracts</AssemblyName>
+    <RootNamespace>EndfieldCharge.Contracts</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>

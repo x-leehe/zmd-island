@@ -15,4 +15,16 @@
   <!-- 插头 / 交流：拔电或未接电源时的备用图标 -->
   <StreamGeometry x:Key="Geo.Plug">M12 2 C9.24 2 7 4.24 7 7 V10 H9 V7 C9 5.34 10.34 4 12 4 C13.66 4 15 5.34 15 7 V10 H17 V7 C17 4.24 14.76 2 12 2 Z M8 12 H16 V15 C16 17.21 14.21 19 12 19 C9.79 19 8 17.21 8 15 V12 Z M10 19.5 H14 V22 H10 V19.5 Z</StreamGeometry>
 
+  <!-- ============================================================
+       音乐岛图标：取自 Google Material Icons（Apache-2.0），同为 24×24 网格。
+       只保留字形 path（剔除原文件里 fill="none" 的透明边框矩形）。
+       摆放统一：方形 Canvas(24×24) → 方形 Viewbox（按网格归一化、必然居中）。
+       ============================================================ -->
+  <StreamGeometry x:Key="Icon.PlayArrow">M8 5v14l11-7z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.Pause">M6 19h4V5H6v14zm8-14v14h4V5h-4z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.SkipPrevious">M6 6h2v12H6zm3.5 6l8.5 6V6z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.SkipNext">M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.ChevronDown">M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z</StreamGeometry>
+  <StreamGeometry x:Key="Icon.MusicNote">M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z</StreamGeometry>
+
 </ResourceDictionary>

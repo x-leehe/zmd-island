@@ -2,7 +2,10 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- 10.0.17763.0 = Win10 1809：既覆盖 SMTC（Windows.Media.Control 自 1809 引入），
+         又保持与原先一致的最低系统要求。带版本号的 Windows TFM 会让 SDK 自动引用
+         WinRT/CsWinRT 投影（Microsoft.Windows.SDK.NET.Ref），无需额外 NuGet 包。 -->
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
@@ -25,9 +28,15 @@
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <RuntimeIdentifier Condition="'$(Configuration)'=='Release'">win-x64</RuntimeIdentifier>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <!-- reference/ 为外部参考仓库（LibreHardwareMonitor 等），不参与本项目编译 -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);reference/**</DefaultItemExcludes>
+    <!-- reference/ 为外部参考仓库（LibreHardwareMonitor 等），不参与本项目编译；
+         src/ 与 plugins/ 为独立项目（契约程序集 / 外部插件），由各自 csproj 编译 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);reference/**;src/**;plugins/**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="src\EndfieldCharge.Contracts\EndfieldCharge.Contracts.csproj" />
+    <ProjectReference Include="src\EndfieldCharge.Contracts.Avalonia\EndfieldCharge.Contracts.Avalonia.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.1" />
@@ -41,5 +50,28 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
+
+  <!-- 外部插件：构建它（但不引用其类型），并把产出的 DLL 复制到输出 plugins/。
+       宿主运行时由 PluginLoader 从该目录加载。
+       插件是**项目内的子项目**（不单独建仓库），随应用一起发版。 -->
+  <ItemGroup>
+    <ProjectReference Include="plugins\EndfieldCharge.Plugin.Music\EndfieldCharge.Plugin.Music.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- 插件产物路径做成共享 item：Build（调试运行）与 Publish（便携版/安装包）都要用 -->
+  <ItemGroup>
+    <PluginDll Include="$(MSBuildThisFileDirectory)plugins\EndfieldCharge.Plugin.Music\bin\$(Configuration)\net8.0-windows10.0.17763.0\EndfieldCharge.Plugin.Music.dll" />
+  </ItemGroup>
+
+  <Target Name="CopyPluginsToOutput" AfterTargets="Build">
+    <Copy SourceFiles="@(PluginDll)" DestinationFolder="$(OutDir)plugins" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- 发版：publish 目录同样带 plugins/（便携版 zip 与 Inno Setup 都打包整个 publish 目录） -->
+  <Target Name="CopyPluginsToPublish" AfterTargets="Publish">
+    <Copy SourceFiles="@(PluginDll)" DestinationFolder="$(PublishDir)plugins" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

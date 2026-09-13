@@ -1,5 +1,4 @@
 using System.Threading;
-using EndfieldCharge.Settings;
 
 namespace EndfieldCharge;
 
@@ -9,16 +8,17 @@ namespace EndfieldCharge;
 /// </summary>
 public static class Localization
 {
-    private static AppSettings? _settings;
+    private static string? _language;
 
-    public static void UseSettings(AppSettings settings) => _settings = settings;
+    /// <summary>由宿主注入语言（设置项 Language；null = 跟随系统）。不依赖 App 的 Settings 类型。</summary>
+    public static void UseLanguage(string? language) => _language = language;
 
     private static bool IsChinese
     {
         get
         {
-            if (_settings?.Language is not null && _settings.Language != "auto")
-                return _settings.Language.StartsWith("zh");
+            if (_language is not null && _language != "auto")
+                return _language.StartsWith("zh");
             return Thread.CurrentThread.CurrentUICulture.Name.StartsWith("zh");
         }
     }
@@ -48,6 +48,7 @@ public static class Localization
     public static string MediaPrev => IsChinese ? "上一曲" : "Previous Track";
     public static string MediaNext => IsChinese ? "下一曲" : "Next Track";
     public static string MediaPause => IsChinese ? "暂停" : "Pause";
+    public static string MediaUnavailable => IsChinese ? "未连接 SMTC" : "SMTC not connected";
     public static string DescTopmost => IsChinese ? "HUD 始终显示在其他窗口上方" : "Keep HUD above other windows";
 
     // ---- 设置窗口 ----

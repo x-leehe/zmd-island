@@ -10,6 +10,8 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using EndfieldCharge.Animations;
 using EndfieldCharge.Contracts;
+using EndfieldCharge.Host.Island;
+using EndfieldCharge.Host.Island.Animation;
 
 namespace EndfieldCharge.Host.Plugins.Battery;
 
@@ -20,13 +22,16 @@ namespace EndfieldCharge.Host.Plugins.Battery;
 /// </summary>
 public partial class BatteryIslandView : UserControl
 {
-    private static readonly TimeSpan DismissDuration = TimeSpan.FromMilliseconds(220);
+    private static readonly TimeSpan DismissDuration = TimeSpan.FromMilliseconds(DesignTokens.Timing.DismissMs);
 
-    private static readonly Color BadgeColorNormal = Color.Parse("#C6CA4C");
-    private static readonly Color BadgeColorLow = Color.Parse("#FF4D4F");
+    private static readonly Color BadgeColorNormal = DesignTokens.Accent;
+    private static readonly Color BadgeColorLow = DesignTokens.Danger;
 
-    private const double RingDiameter = 46d;
-    private const double RingThickness = 4.5d;
+    private const double RingDiameter = DesignTokens.RingDiameter;
+    private const double RingThickness = DesignTokens.RingThickness;
+
+    /// <summary>状态 C 电标贴左偏移（电池皮肤专有，与 HudAnimations.IconOffsetC 同值）。</summary>
+    private const double IconOffsetC = -245d;
 
     private AnimationOptions _options = AnimationOptions.Default;
     private IslandContentDescriptor? _lastContent;
@@ -44,6 +49,12 @@ public partial class BatteryIslandView : UserControl
 
     /// <summary>胶囊当前宽度（DIP）：点击穿透与悬停命中区随收缩态收窄。</summary>
     public double PillWidthDips => Pill.Width;
+
+    /// <summary>当前岛尺寸（等待/收缩态高度均为 60；宽度随收缩变化）。</summary>
+    public IslandMetrics CurrentMetrics => new(Pill.Width, DesignTokens.PillHeight, DesignTokens.PillTop, _contentScale);
+
+    /// <summary>完整岛区（固定 560×60）——悬停唤醒区不随收缩收窄。</summary>
+    public IslandMetrics HoverMetrics => new(DesignTokens.PillWidth, DesignTokens.PillHeight, DesignTokens.PillTop, _contentScale);
 
     public BatteryIslandView()
     {
@@ -65,9 +76,13 @@ public partial class BatteryIslandView : UserControl
         TitleText.Text = Localization.TitleMode;
     }
 
+    /// <summary>内部渲染缩放（= 设置项 GlobalScale，默认 0.8）；供宿主换算命中区尺寸。</summary>
+    private double _contentScale = 0.8d;
+
     /// <summary>应用全局缩放（设置项 GlobalScale）。</summary>
     public void ApplyScale(double globalScale)
     {
+        _contentScale = globalScale;
         GlobalScale.RenderTransform = new ScaleTransform(globalScale, globalScale);
     }
 
@@ -83,8 +98,8 @@ public partial class BatteryIslandView : UserControl
     {
         SetSimpleCState(); // 状态 C 布局基础值（电标 -245、NumHost 就位、波纹隐藏）
 
-        Pill.Width = 200d;
-        PillShadow.Width = 200d;
+        Pill.Width = DesignTokens.ContractedWidth;
+        PillShadow.Width = DesignTokens.ContractedWidth;
         Pill.Opacity = 1d;
         PillShadow.Opacity = 1d;
         Pill.RenderTransform = new ScaleTransform(1d, 1d);
@@ -94,8 +109,8 @@ public partial class BatteryIslandView : UserControl
         ContractedHost.IsVisible = true;
         ContractedHost.Opacity = 1d;
 
-        // 揭示起点：整体位于上方（-110，与退场吸出的终点对称）——展开时滑回原位
-        Root.RenderTransform = new TranslateTransform(0d, -110d);
+        // 揭示起点：整体位于上方（与退场吸出的终点对称）——展开时滑回原位
+        Root.RenderTransform = new TranslateTransform(0d, DesignTokens.SlideOffset);
     }
 
     // ---------------- 数据绑定 ----------------
@@ -138,40 +153,8 @@ public partial class BatteryIslandView : UserControl
         ContractedPercentText.Text = content.PercentText is null ? "--" : content.PercentText + "%";
     }
 
-    private static Geometry BuildRingGeometry(double fraction, double diameter, double thickness)
-    {
-        double radius = (diameter - thickness) / 2d;
-        var center = new Point(diameter / 2d, diameter / 2d);
-
-        double sweep = 360d * Math.Clamp(fraction, 0d, 1d);
-        if (sweep < 0.5d) sweep = 0.5d;
-        if (sweep > 359.5d) sweep = 359.5d;
-
-        const double startAngle = -90d;
-        var start = PointOnCircle(center, radius, startAngle);
-        var end = PointOnCircle(center, radius, startAngle + sweep);
-
-        var figure = new PathFigure { StartPoint = start, IsClosed = false };
-        figure.Segments = new PathSegments
-        {
-            new ArcSegment
-            {
-                Point = end,
-                Size = new Size(radius, radius),
-                RotationAngle = 0d,
-                IsLargeArc = sweep > 180d,
-                SweepDirection = SweepDirection.Clockwise,
-            },
-        };
-
-        return new PathGeometry { Figures = new PathFigures { figure } };
-    }
-
-    private static Point PointOnCircle(Point center, double radius, double degrees)
-    {
-        double rad = degrees * Math.PI / 180d;
-        return new Point(center.X + radius * Math.Cos(rad), center.Y + radius * Math.Sin(rad));
-    }
+    private static Geometry BuildRingGeometry(double fraction, double diameter, double thickness) =>
+        RingGeometry.Build(fraction, diameter, thickness);
 
     // ---------------- 动画播放（皮肤契约，4 态生命周期） ----------------
 
@@ -284,18 +267,9 @@ public partial class BatteryIslandView : UserControl
         _isPresent = true;
     }
 
-    /// <summary>揭示滑入：整体从上方（-110）滑回原位，260ms ease-out——与宽度展开并行，稍长以平滑落定。</summary>
-    private static Animation BuildSlideInAnim() => new()
-    {
-        Duration = TimeSpan.FromMilliseconds(260),
-        FillMode = FillMode.Forward,
-        Easing = new QuadraticEaseOut(),
-        Children =
-        {
-            new KeyFrame { Cue = new Cue(0d), Setters = { new Setter(TranslateTransform.YProperty, -110d) } },
-            new KeyFrame { Cue = new Cue(1d), Setters = { new Setter(TranslateTransform.YProperty, 0d) } },
-        },
-    };
+    /// <summary>揭示滑入：整体从上方滑回原位，260ms ease-out——与宽度展开并行，稍长以平滑落定。</summary>
+    private static Animation BuildSlideInAnim() =>
+        AnimationPrimitives.SlideY(DesignTokens.SlideOffset, 0d, DesignTokens.Timing.SlideInMs);
 
     /// <summary>
     /// 收缩（等待 → 收缩）：胶囊宽度 560→200（Layoutable.WidthProperty 动画，无非均匀缩放），
@@ -322,8 +296,8 @@ public partial class BatteryIslandView : UserControl
         }
 
         // 固化收缩态基础值（动画时钟回收后仍保持 200 宽、仅环 + 百分比）
-        Pill.Width = 200d;
-        PillShadow.Width = 200d;
+        Pill.Width = DesignTokens.ContractedWidth;
+        PillShadow.Width = DesignTokens.ContractedWidth;
         NumHost.Opacity = 0d;
         BoltIcon.Opacity = 0d;
         ContractedHost.Opacity = 1d;
@@ -337,44 +311,8 @@ public partial class BatteryIslandView : UserControl
     /// </summary>
     public async Task PlayDismissAsync(CancellationToken ct)
     {
-        var rise = new Animation
-        {
-            Duration = DismissDuration,
-            FillMode = FillMode.Forward,
-            Easing = new CubicEaseIn(),
-            Children =
-            {
-                new KeyFrame { Cue = new Cue(0d), Setters = { new Setter(TranslateTransform.YProperty, 0d) } },
-                new KeyFrame { Cue = new Cue(1d), Setters = { new Setter(TranslateTransform.YProperty, -110d) } },
-            },
-        };
-        var shrink = new Animation
-        {
-            Duration = DismissDuration,
-            FillMode = FillMode.Forward,
-            Easing = new CubicEaseIn(),
-            Children =
-            {
-                new KeyFrame
-                {
-                    Cue = new Cue(0d),
-                    Setters =
-                    {
-                        new Setter(ScaleTransform.ScaleXProperty, 1d),
-                        new Setter(ScaleTransform.ScaleYProperty, 1d),
-                    },
-                },
-                new KeyFrame
-                {
-                    Cue = new Cue(1d),
-                    Setters =
-                    {
-                        new Setter(ScaleTransform.ScaleXProperty, 0.85d),
-                        new Setter(ScaleTransform.ScaleYProperty, 0.85d),
-                    },
-                },
-            },
-        };
+        var rise = AnimationPrimitives.SlideY(0d, DesignTokens.SlideOffset, DesignTokens.Timing.DismissMs, new CubicEaseIn());
+        var shrink = AnimationPrimitives.ScaleUniform(1d, DesignTokens.Timing.DismissScale, DesignTokens.Timing.DismissMs, new CubicEaseIn());
         var fade = BuildFade(1d, 0d, (int)DismissDuration.TotalMilliseconds);
 
         try
@@ -395,31 +333,13 @@ public partial class BatteryIslandView : UserControl
         _isContracted = false;
     }
 
-    // ---------------- 过渡辅助 ----------------
+    // ---------------- 过渡辅助（委托共享动画原语） ----------------
 
-    private static Animation BuildWidthAnim(double from, double to) => new()
-    {
-        Duration = TimeSpan.FromMilliseconds(200),
-        FillMode = FillMode.Forward,
-        Easing = new QuadraticEaseOut(),
-        Children =
-        {
-            new KeyFrame { Cue = new Cue(0d), Setters = { new Setter(Layoutable.WidthProperty, from) } },
-            new KeyFrame { Cue = new Cue(1d), Setters = { new Setter(Layoutable.WidthProperty, to) } },
-        },
-    };
+    private static Animation BuildWidthAnim(double from, double to) =>
+        AnimationPrimitives.WidthTransition(from, to);
 
-    private static Animation BuildFade(double from, double to, int ms = 200) => new()
-    {
-        Duration = TimeSpan.FromMilliseconds(ms),
-        FillMode = FillMode.Forward,
-        Easing = new QuadraticEaseOut(),
-        Children =
-        {
-            new KeyFrame { Cue = new Cue(0d), Setters = { new Setter(OpacityProperty, from) } },
-            new KeyFrame { Cue = new Cue(1d), Setters = { new Setter(OpacityProperty, to) } },
-        },
-    };
+    private static Animation BuildFade(double from, double to, int ms = DesignTokens.Timing.FadeMs) =>
+        AnimationPrimitives.Fade(from, to, ms);
 
     // ---------------- 动画复位 ----------------
 
@@ -430,15 +350,15 @@ public partial class BatteryIslandView : UserControl
 
         ScaleHost.RenderTransform = new ScaleTransform(1d, 1d);
 
-        Pill.Width = 560;
-        Pill.Height = 60;
-        Pill.CornerRadius = new CornerRadius(30d);
+        Pill.Width = DesignTokens.PillWidth;
+        Pill.Height = DesignTokens.PillHeight;
+        Pill.CornerRadius = new CornerRadius(DesignTokens.RadiusRound);
         Pill.Opacity = 0;
         Pill.RenderTransform = new ScaleTransform(0.6d, 0.6d);
 
-        PillShadow.Width = 560;
-        PillShadow.Height = 60;
-        PillShadow.CornerRadius = new CornerRadius(30d);
+        PillShadow.Width = DesignTokens.PillWidth;
+        PillShadow.Height = DesignTokens.PillHeight;
+        PillShadow.CornerRadius = new CornerRadius(DesignTokens.RadiusRound);
         PillShadow.Opacity = 0;
         PillShadow.RenderTransform = new ScaleTransform(0.6d, 0.6d);
 
@@ -450,9 +370,9 @@ public partial class BatteryIslandView : UserControl
         };
         BoltIcon.Opacity = 0;
 
-        RippleInnerHost.RenderTransform = new TranslateTransform(0d, 16d);
-        RippleMidHost.RenderTransform = new TranslateTransform(0d, 16d);
-        RippleOuterHost.RenderTransform = new TranslateTransform(0d, 16d);
+        RippleInnerHost.RenderTransform = new TranslateTransform(0d, DesignTokens.RippleRise);
+        RippleMidHost.RenderTransform = new TranslateTransform(0d, DesignTokens.RippleRise);
+        RippleOuterHost.RenderTransform = new TranslateTransform(0d, DesignTokens.RippleRise);
 
         RippleInner.RenderTransform = new ScaleTransform(0d, 0d);
         RippleInner.Opacity = 0;
@@ -477,23 +397,23 @@ public partial class BatteryIslandView : UserControl
     private void ShowFullyExpandedStatic()
     {
         ScaleHost.RenderTransform = new ScaleTransform(1d, 1d);
-        Pill.Width = 560;
-        Pill.Height = 60;
-        Pill.CornerRadius = new CornerRadius(30d);
+        Pill.Width = DesignTokens.PillWidth;
+        Pill.Height = DesignTokens.PillHeight;
+        Pill.CornerRadius = new CornerRadius(DesignTokens.RadiusRound);
         Pill.Opacity = 1;
         Pill.RenderTransform = new ScaleTransform(1d, 1d);
 
-        PillShadow.Width = 560;
-        PillShadow.Height = 60;
-        PillShadow.CornerRadius = new CornerRadius(30d);
+        PillShadow.Width = DesignTokens.PillWidth;
+        PillShadow.Height = DesignTokens.PillHeight;
+        PillShadow.CornerRadius = new CornerRadius(DesignTokens.RadiusRound);
         PillShadow.Opacity = 1;
         PillShadow.RenderTransform = new ScaleTransform(1d, 1d);
 
-        RippleHost.RenderTransform = new TranslateTransform(-245d, 0d);
+        RippleHost.RenderTransform = new TranslateTransform(IconOffsetC, 0d);
 
         BoltIcon.RenderTransform = new TransformGroup
         {
-            Children = { new ScaleTransform(1d, 1d), new TranslateTransform(-245d, 0d) },
+            Children = { new ScaleTransform(1d, 1d), new TranslateTransform(IconOffsetC, 0d) },
         };
         BoltIcon.Opacity = 1;
         CircleForm.Opacity = 0;
@@ -507,32 +427,32 @@ public partial class BatteryIslandView : UserControl
 
     private void SetSimpleCState()
     {
-        Pill.Width = 560;
-        Pill.Height = 60;
-        Pill.CornerRadius = new CornerRadius(30d);
+        Pill.Width = DesignTokens.PillWidth;
+        Pill.Height = DesignTokens.PillHeight;
+        Pill.CornerRadius = new CornerRadius(DesignTokens.RadiusRound);
         Pill.Opacity = 0;
         Pill.RenderTransform = new ScaleTransform(0.6d, 0.6d);
 
-        PillShadow.Width = 560;
-        PillShadow.Height = 60;
-        PillShadow.CornerRadius = new CornerRadius(30d);
+        PillShadow.Width = DesignTokens.PillWidth;
+        PillShadow.Height = DesignTokens.PillHeight;
+        PillShadow.CornerRadius = new CornerRadius(DesignTokens.RadiusRound);
         PillShadow.Opacity = 0;
         PillShadow.RenderTransform = new ScaleTransform(0.6d, 0.6d);
 
         BoltIcon.RenderTransform = new TransformGroup
         {
-            Children = { new ScaleTransform(1d, 1d), new TranslateTransform(-245d, 0d) },
+            Children = { new ScaleTransform(1d, 1d), new TranslateTransform(IconOffsetC, 0d) },
         };
         BoltIcon.Opacity = 0;
         CircleForm.Opacity = 0;
         SquareForm.Opacity = 1;
 
         TitleHost.Opacity = 0;
-        RippleHost.Height = 60;
+        RippleHost.Height = DesignTokens.PillHeight;
         RippleHost.RenderTransform = new TranslateTransform(0d, 0d);
-        RippleInnerHost.RenderTransform = new TranslateTransform(0d, 16d);
-        RippleMidHost.RenderTransform = new TranslateTransform(0d, 16d);
-        RippleOuterHost.RenderTransform = new TranslateTransform(0d, 16d);
+        RippleInnerHost.RenderTransform = new TranslateTransform(0d, DesignTokens.RippleRise);
+        RippleMidHost.RenderTransform = new TranslateTransform(0d, DesignTokens.RippleRise);
+        RippleOuterHost.RenderTransform = new TranslateTransform(0d, DesignTokens.RippleRise);
         RippleInner.Opacity = 0;
         RippleMid.Opacity = 0;
         RippleOuter.Opacity = 0;

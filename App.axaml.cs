@@ -9,10 +9,10 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using EndfieldCharge.Contracts;
+using EndfieldCharge.Contracts.Avalonia;
 using EndfieldCharge.Host.Menu;
 using EndfieldCharge.Host.Plugins;
 using EndfieldCharge.Host.Plugins.Battery;
-using EndfieldCharge.Host.Plugins.Demo;
 using EndfieldCharge.Services;
 using EndfieldCharge.Settings;
 using EndfieldCharge.Views;
@@ -44,7 +44,7 @@ public partial class App : Application
 
         // 加载设置
         _settings = SettingsManager.Load();
-        Localization.UseSettings(_settings);
+        Localization.UseLanguage(_settings.Language);
         Logger.Enabled = true; // 可改为设置项
 
         // 全局未捕获异常兜底
@@ -61,10 +61,25 @@ public partial class App : Application
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         desktop.Exit += OnDesktopExit;
 
-        // 插件注册表：电池元插件（皮肤/内容，不可卸载）+ 音乐演示插件（菜单注入）
+        // 插件注册表：电池元插件（皮肤/内容，不可卸载）+ 外部插件（plugins/ 目录）
         _pluginRegistry = new PluginRegistry();
-        _pluginRegistry.Register(new BatteryPlugin());
-        _pluginRegistry.Register(new MusicDemoPlugin());
+        var battery = new BatteryPlugin();
+        _pluginRegistry.Register(battery);
+
+        // 宿主服务：HudWindow 在插件加载之后才创建，故用懒解析委托（插件需要时再取）
+        object? ResolveHostService(Type serviceType)
+        {
+            if (serviceType == typeof(IIslandHost))
+                return _hud;
+            return null;
+        }
+
+        // 内置元插件也走一遍生命周期（数据目录 + 上下文），与外部插件一致
+        battery.Initialize(PluginContext.Create(battery.Id, ResolveHostService));
+
+        // 外部插件：从宿主旁 plugins/ 目录加载（每插件独立 ALC，契约共享默认上下文）
+        foreach (var plugin in PluginLoader.Load(System.IO.Path.Combine(AppContext.BaseDirectory, "plugins"), ResolveHostService))
+            _pluginRegistry.Register(plugin);
 
         _hud = new HudWindow(_pluginRegistry);
         _hud.ApplySettings(_settings);
@@ -79,6 +94,8 @@ public partial class App : Application
             _ = PreviewSimpleAsync();
         else if (HasCommandLineArg("--preview"))
             _ = TriggerHudAsync();
+        else if (HasCommandLineArg("--demo-music"))
+            _ = _hud.StartMusicDemoAsync();
 
         base.OnFrameworkInitializationCompleted();
     }
@@ -88,7 +105,7 @@ public partial class App : Application
     public void OnSettingsChanged(AppSettings settings)
     {
         _settings = settings;
-        Localization.UseSettings(settings);
+        Localization.UseLanguage(settings.Language);
         _hud?.ApplySettings(settings);
 
         // 同步原生右键菜单「置顶」勾选状态（岛菜单 / 设置窗口切换后保持一致）
@@ -489,6 +506,22 @@ public partial class App : Application
 
     private void OnDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
+        // 插件生命周期收尾（含外部插件：停掉各自的轮询 / 定时器）
+        if (_pluginRegistry is not null)
+        {
+            foreach (var plugin in _pluginRegistry.Plugins)
+            {
+                try
+                {
+                    plugin.Shutdown();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"PluginLoader: 插件 {plugin.Id} 关闭异常 —— {ex.Message}");
+                }
+            }
+        }
+
         _watcher?.Dispose();
         _watcher = null;
 

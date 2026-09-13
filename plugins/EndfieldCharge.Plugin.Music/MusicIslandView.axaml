@@ -1,0 +1,202 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="EndfieldCharge.Host.Plugins.Music.MusicIslandView"
+             Width="1200" Height="220">
+
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://EndfieldCharge.Contracts.Avalonia/Styles/Geometries.axaml"/>
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </UserControl.Resources>
+
+  <!-- 岛内按钮：默认半透明白 · 悬停提亮 · 按下更亮（带平滑过渡） -->
+  <UserControl.Styles>
+    <Style Selector="Border.island-btn">
+      <Setter Property="Background" Value="#14FFFFFF"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.12"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.island-btn:pointerover">
+      <Setter Property="Background" Value="#2BFFFFFF"/>
+    </Style>
+    <Style Selector="Border.island-btn:pressed">
+      <Setter Property="Background" Value="#3DFFFFFF"/>
+    </Style>
+  </UserControl.Styles>
+
+  <!-- 音乐插件岛皮肤：三态（等待 560×60 / 展开 560×160 / 收缩 200×60）。
+       胶囊顶距 = 50（与电池皮肤一致，配合窗口 -48 偏移落在屏幕顶缘）；Root 高 220 以容纳展开态。
+       坐标严格对应 docs/designs/music-all.json。 -->
+  <Grid x:Name="Root" Width="1200" Height="220" VerticalAlignment="Top">
+    <Grid x:Name="GlobalScale" HorizontalAlignment="Center" VerticalAlignment="Top"
+          RenderTransformOrigin="50%,50%" Margin="0,50,0,0">
+      <Grid.RenderTransform>
+        <ScaleTransform ScaleX="0.8" ScaleY="0.8"/>
+      </Grid.RenderTransform>
+
+      <Grid x:Name="ScaleHost" HorizontalAlignment="Center" VerticalAlignment="Top" RenderTransformOrigin="50%,50%">
+        <Grid.RenderTransform>
+          <ScaleTransform ScaleX="1" ScaleY="1"/>
+        </Grid.RenderTransform>
+
+        <Border x:Name="PillShadow" Width="560" Height="60" CornerRadius="30"
+                Background="#00000000" BoxShadow="0 1 6 #40000000"
+                HorizontalAlignment="Center" VerticalAlignment="Top"
+                IsHitTestVisible="False" Opacity="0"/>
+
+        <Border x:Name="Pill" Width="560" Height="60" CornerRadius="30" Background="#FF312F30"
+                ClipToBounds="True" HorizontalAlignment="Center" VerticalAlignment="Top"
+                Opacity="0" RenderTransformOrigin="50%,50%">
+          <Border.RenderTransform>
+            <ScaleTransform ScaleX="1" ScaleY="1"/>
+          </Border.RenderTransform>
+
+          <Grid>
+            <!-- 展开态：全屏平滑频谱背景 -->
+            <Path x:Name="SpectrumPath" Width="560" Height="160" Stretch="Fill"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Opacity="0" IsHitTestVisible="False"/>
+
+            <!-- ================= 等待态 560×60 ================= -->
+            <Canvas x:Name="WaitHost" Width="560" Height="60"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0">
+              <Border x:Name="WaitCover" Canvas.Left="24" Canvas.Top="10" Width="40" Height="40"
+                      CornerRadius="7" Background="#FF2E2C2D" ClipToBounds="True">
+                <Grid>
+                  <Viewbox Width="24" Height="24" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Canvas Width="24" Height="24">
+                      <Path Data="{DynamicResource Icon.MusicNote}" Fill="#B3FFFFFF"/>
+                    </Canvas>
+                  </Viewbox>
+                  <Image x:Name="WaitCoverImage" Stretch="UniformToFill"/>
+                </Grid>
+              </Border>
+              <TextBlock x:Name="WaitLyric" Canvas.Left="72" Canvas.Top="15" Width="264" Height="32"
+                         FontSize="20" FontWeight="Bold" Foreground="White" TextAlignment="Left"
+                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+              <Canvas x:Name="WaitSpectrum" Canvas.Left="419" Canvas.Top="18" Width="16" Height="24">
+                <Rectangle x:Name="WaitBar1" Width="3" RadiusX="1.5" RadiusY="1.5" Fill="#FFC6CA4C" Canvas.Left="0"/>
+                <Rectangle x:Name="WaitBar2" Width="3" RadiusX="1.5" RadiusY="1.5" Fill="#FFC6CA4C" Canvas.Left="6.5"/>
+                <Rectangle x:Name="WaitBar3" Width="3" RadiusX="1.5" RadiusY="1.5" Fill="#FFC6CA4C" Canvas.Left="13"/>
+              </Canvas>
+              <Border x:Name="WaitExpand" Canvas.Left="454" Canvas.Top="11" Width="40" Height="40"
+                      CornerRadius="20" Classes="island-btn">
+                <!-- 方形 Canvas(24×24) 与 Viewbox 同比例 → 按「图标网格」归一化，居中由构造保证 -->
+                <Viewbox Width="24" Height="24" Stretch="Uniform"
+                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Canvas Width="24" Height="24">
+                    <Path Data="{DynamicResource Icon.ChevronDown}" Fill="White"/>
+                  </Canvas>
+                </Viewbox>
+              </Border>
+              <Border x:Name="WaitRing" Canvas.Left="504" Canvas.Top="10" Width="40" Height="40"
+                      CornerRadius="20" Classes="island-btn">
+                <Grid>
+                  <Path x:Name="WaitRingArc" Stroke="#FFC6CA4C" StrokeThickness="3.9" StrokeLineCap="Round"/>
+                  <Viewbox Width="24" Height="24" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Canvas Width="24" Height="24">
+                      <Path x:Name="WaitRingIcon" Data="{DynamicResource Icon.PlayArrow}" Fill="White"/>
+                    </Canvas>
+                  </Viewbox>
+                </Grid>
+              </Border>
+            </Canvas>
+
+            <!-- ================= 展开态 560×160 ================= -->
+            <Canvas x:Name="UnfoldHost" Width="560" Height="160" IsVisible="False"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0">
+              <Border x:Name="UnfoldCover" Canvas.Left="32" Canvas.Top="32" Width="96" Height="96"
+                      CornerRadius="8" Background="#FF2E2C2D" ClipToBounds="True">
+                <Grid>
+                  <Viewbox Width="48" Height="48" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Canvas Width="24" Height="24">
+                      <Path Data="{DynamicResource Icon.MusicNote}" Fill="#B3FFFFFF"/>
+                    </Canvas>
+                  </Viewbox>
+                  <Image x:Name="UnfoldCoverImage" Stretch="UniformToFill"/>
+                </Grid>
+              </Border>
+              <StackPanel x:Name="UnfoldTitle" Canvas.Left="144" Canvas.Top="32" Width="168">
+                <TextBlock x:Name="UnfoldTitleText" FontSize="20" FontWeight="Bold" Foreground="White"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="UnfoldArtistText" FontSize="16" Foreground="#8CFFFFFF"
+                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
+              </StackPanel>
+              <TextBlock x:Name="UnfoldLyric" Canvas.Left="144" Canvas.Top="80" Width="200" Height="32"
+                         FontSize="18" FontWeight="Bold" Foreground="White" TextAlignment="Left"
+                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+              <Canvas x:Name="UnfoldProgress" Canvas.Left="144" Canvas.Top="116" Width="200" Height="8">
+                <Border Width="200" Height="8" CornerRadius="4" Background="#26FFFFFF"/>
+                <Border x:Name="UnfoldProgressFill" Width="90" Height="8" CornerRadius="4"
+                        Background="#FFC6CA4C" HorizontalAlignment="Left"/>
+              </Canvas>
+              <Border x:Name="UnfoldPrev" Canvas.Left="392" Canvas.Top="56" Width="48" Height="48"
+                      CornerRadius="24" Classes="island-btn">
+                <Viewbox Width="32" Height="32" Stretch="Uniform"
+                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Canvas Width="24" Height="24">
+                    <Path Data="{DynamicResource Icon.SkipPrevious}" Fill="White"/>
+                  </Canvas>
+                </Viewbox>
+              </Border>
+              <Border x:Name="UnfoldPlay" Canvas.Left="448" Canvas.Top="56" Width="48" Height="48"
+                      CornerRadius="24" Classes="island-btn">
+                <Viewbox Width="32" Height="32" Stretch="Uniform"
+                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Canvas Width="24" Height="24">
+                    <Path x:Name="PlayGlyph" Data="{DynamicResource Icon.PlayArrow}" Fill="White"/>
+                    <Path x:Name="PauseGlyph" Data="{DynamicResource Icon.Pause}" Fill="White" IsVisible="False"/>
+                  </Canvas>
+                </Viewbox>
+              </Border>
+              <Border x:Name="UnfoldNext" Canvas.Left="504" Canvas.Top="56" Width="48" Height="48"
+                      CornerRadius="24" Classes="island-btn">
+                <Viewbox Width="32" Height="32" Stretch="Uniform"
+                         HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Canvas Width="24" Height="24">
+                    <Path Data="{DynamicResource Icon.SkipNext}" Fill="White"/>
+                  </Canvas>
+                </Viewbox>
+              </Border>
+            </Canvas>
+
+            <!-- ================= 收缩态 200×60 ================= -->
+            <Canvas x:Name="ContractHost" Width="200" Height="60" IsVisible="False"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0">
+              <Border x:Name="ContractCover" Canvas.Left="24" Canvas.Top="10" Width="40" Height="40"
+                      CornerRadius="7" Background="#FF2E2C2D" ClipToBounds="True">
+                <Grid>
+                  <Viewbox Width="24" Height="24" Stretch="Uniform"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Canvas Width="24" Height="24">
+                      <Path Data="{DynamicResource Icon.MusicNote}" Fill="#B3FFFFFF"/>
+                    </Canvas>
+                  </Viewbox>
+                  <Image x:Name="ContractCoverImage" Stretch="UniformToFill"/>
+                </Grid>
+              </Border>
+              <Canvas x:Name="ContractSpectrum" Canvas.Left="72" Canvas.Top="18" Width="16" Height="24">
+                <Rectangle x:Name="ContractBar1" Width="3" RadiusX="1.5" RadiusY="1.5" Fill="#FFC6CA4C" Canvas.Left="0"/>
+                <Rectangle x:Name="ContractBar2" Width="3" RadiusX="1.5" RadiusY="1.5" Fill="#FFC6CA4C" Canvas.Left="6.5"/>
+                <Rectangle x:Name="ContractBar3" Width="3" RadiusX="1.5" RadiusY="1.5" Fill="#FFC6CA4C" Canvas.Left="13"/>
+              </Canvas>
+              <Grid x:Name="ContractRing" Canvas.Left="144" Canvas.Top="10" Width="40" Height="40">
+                <Ellipse Width="40" Height="40" Fill="#FF262425"/>
+                <Path x:Name="ContractRingArc" Stroke="#FFC6CA4C" StrokeThickness="3.9" StrokeLineCap="Round"/>
+              </Grid>
+            </Canvas>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</UserControl>

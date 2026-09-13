@@ -21,7 +21,7 @@
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
-        <ResourceInclude Source="avares://EndfieldCharge/Styles/Geometries.axaml"/>
+        <ResourceInclude Source="avares://EndfieldCharge.Contracts.Avalonia/Styles/Geometries.axaml"/>
         <ResourceInclude Source="avares://EndfieldCharge/Styles/HudTheme.axaml"/>
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
@@ -30,7 +30,7 @@
   <!-- 窗口只保留 chrome：ContentControl 承载插件皮肤（电池元插件 BatteryIslandView），
        其余为 FPS 调试计数器。位置与原 Root 底缘一致：
        窗口 160 高、Root 100 高居中 → Root 底缘 y=130，窗口底对齐需下移 30+2=32 -->
-  <Grid Width="1200" Height="160">
+  <Grid x:Name="RootGrid" Width="1200" Height="160">
     <ContentControl x:Name="IslandHost" Width="1200" Height="160"/>
     <TextBlock x:Name="FpsText"
                HorizontalAlignment="Right" VerticalAlignment="Bottom"

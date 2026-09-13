@@ -119,6 +119,10 @@ public sealed class BatteryPlugin : IPlugin, IIslandContentProvider, IIslandSkin
 
     public void ApplyScale(double globalScale) => _view.ApplyScale(globalScale);
 
+    public IslandMetrics CurrentMetrics => _view.CurrentMetrics;
+
+    public IslandMetrics HoverMetrics => _view.HoverMetrics;
+
     /// <summary>胶囊当前宽度（DIP）：宿主点击穿透 / 悬停命中区随收缩态收窄。</summary>
     public double PillWidthDips => _view.PillWidthDips;
 
