@@ -50,6 +50,13 @@
               <TextBlock x:Name="TabAnimationText" Text="动画" FontSize="13"/>
             </Grid>
           </Border>
+          <Border x:Name="TabPluginsBtn" Tag="Plugins"
+                  Height="38" CornerRadius="8" Padding="12,0"
+                  Background="Transparent" Cursor="Hand">
+            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+              <TextBlock x:Name="TabPluginsText" Text="插件" FontSize="13"/>
+            </Grid>
+          </Border>
           <Border x:Name="TabNotificationsBtn" Tag="Notifications"
                   Height="38" CornerRadius="8" Padding="12,0"
                   Background="Transparent" Cursor="Hand">
@@ -71,6 +78,14 @@
       <Border Grid.Column="1" Background="#1A1A1C">
         <ScrollViewer Margin="20,16,16,8">
           <StackPanel x:Name="ContentPanel" Spacing="0">
+
+            <!-- 插件 Tab：左侧插件条目 + 右侧插件自绘设置面板 -->
+            <StackPanel x:Name="PluginsPanel" IsVisible="False" Spacing="14">
+              <StackPanel x:Name="PluginList" Spacing="6"/>
+              <TextBlock x:Name="NoPluginSettingsText" FontSize="12" Foreground="#888888"
+                         TextWrapping="Wrap" IsVisible="False"/>
+              <ContentControl x:Name="PluginHost"/>
+            </StackPanel>
 
             <!-- 通用 Tab -->
             <StackPanel x:Name="GeneralPanel" IsVisible="True" Spacing="0">
@@ -95,6 +110,11 @@
                     </StackPanel>
                     <ToggleSwitch x:Name="WindowTopmostSwitch" Grid.Column="1"/>
                   </Grid>
+                  <Border Height="1" Background="#2A2A2C"/>
+                  <StackPanel Spacing="5">
+                    <TextBlock x:Name="LabelWheelSwitch" Text="滚轮切换岛" FontSize="12" Foreground="#888888"/>
+                    <ComboBox x:Name="WheelSwitchCombo" Height="32"/>
+                  </StackPanel>
                 </StackPanel>
               </Border>
 

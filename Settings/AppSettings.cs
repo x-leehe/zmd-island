@@ -32,6 +32,22 @@ public sealed record AppSettings
 
     /// <summary>HUD 窗口置顶（灵动岛右键菜单「窗口置顶」可切换）。</summary>
     public bool WindowTopmost { get; init; } = true;
+
+    /// <summary>鼠标滚轮在岛上的切换行为（循环 / 到边界停止 / 禁用）。</summary>
+    public WheelSwitchMode WheelSwitch { get; init; } = WheelSwitchMode.Wrap;
+}
+
+/// <summary>滚轮在岛上切换岛的行为。</summary>
+public enum WheelSwitchMode
+{
+    /// <summary>循环切换：最后一个之后再滚回到第一个。</summary>
+    Wrap,
+
+    /// <summary>到边界即停：已在第一个 / 最后一个时不再切换。</summary>
+    Clamp,
+
+    /// <summary>禁用滚轮切换岛。</summary>
+    Disabled,
 }
 
 public enum HudPosition

@@ -57,10 +57,24 @@ public static class Localization
     public static string TabNotifications => IsChinese ? "通知" : "Notifications";
     public static string TabAbout => IsChinese ? "关于" : "About";
     public static string LabelScale => IsChinese ? "全局缩放" : "Global Scale";
+    // ---- 音乐插件设置（面板由插件自绘，字符串仍沿用同一张表） ----
+    public static string MusicSectionTitle => IsChinese ? "音乐岛" : "Music Island";
+    public static string LabelExpandedTimeout => IsChinese ? "展开态超时（秒，最低 3）" : "Expanded Timeout (s, min 3)";
+    public static string LabelShowTitleWhenNoLyric => IsChinese ? "无歌词时显示歌名" : "Show Title When No Lyrics";
+    public static string LabelShowVisualizer => IsChinese ? "显示可视化器" : "Show Visualizer";
+    public static string LabelLyricSource => IsChinese ? "歌词来源" : "Lyrics Source";
+    public static string LyricSourceSmtc => IsChinese ? "跟随系统媒体会话（SMTC）" : "System Media Session (SMTC)";
+    public static string LyricSourceLocal => IsChinese ? "本地歌词文件" : "Local Lyrics File";
+    public static string LyricSourceLrclib => IsChinese ? "LRCLIB 在线歌词" : "LRCLIB (online)";
+    public static string NoPluginSettings => IsChinese ? "暂无插件提供设置" : "No plugin settings available";
     public static string LabelWaitingTimeout => IsChinese ? "等待态超时（秒）" : "Waiting Timeout (s)";
     public static string LabelContractedTimeout => IsChinese ? "收缩态超时（秒）" : "Contracted Timeout (s)";
     public static string LabelPosition => IsChinese ? "HUD 位置" : "HUD Position";
     public static string LabelMonitor => IsChinese ? "显示器" : "Monitor";
+    public static string LabelWheelSwitch => IsChinese ? "滚轮切换岛" : "Wheel Island Switching";
+    public static string WheelSwitchWrap => IsChinese ? "循环切换" : "Cycle Through";
+    public static string WheelSwitchClamp => IsChinese ? "到边界即停" : "Stop at Ends";
+    public static string WheelSwitchDisabled => IsChinese ? "禁用" : "Disabled";
     public static string LabelLanguage => IsChinese ? "语言" : "Language";
     public static string ValueAuto => IsChinese ? "自动" : "Auto";
     public static string ValueChinese => IsChinese ? "中文" : "Chinese";

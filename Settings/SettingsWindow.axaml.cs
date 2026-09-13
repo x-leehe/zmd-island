@@ -37,7 +37,9 @@ public partial class SettingsWindow : Window
         InitLanguageCombo();
         InitPositionCombo();
         InitPreviewModeCombo();
+        InitWheelSwitchCombo();
         ApplyLocalization();
+        InitPluginPages();
 
         PopulateMonitors();
         LoadSettings(settings);
@@ -45,6 +47,7 @@ public partial class SettingsWindow : Window
         // Tab 切换
         TabGeneralBtn.PointerPressed += (_, _) => SwitchTab(TabGeneralBtn, GeneralPanel);
         TabAnimationBtn.PointerPressed += (_, _) => SwitchTab(TabAnimationBtn, AnimationPanel);
+        TabPluginsBtn.PointerPressed += (_, _) => SwitchTab(TabPluginsBtn, PluginsPanel);
         TabNotificationsBtn.PointerPressed += (_, _) => SwitchTab(TabNotificationsBtn, NotificationsPanel);
         TabAboutBtn.PointerPressed += (_, _) => SwitchTab(TabAboutBtn, AboutPanel);
 
@@ -134,6 +137,14 @@ public partial class SettingsWindow : Window
         PreviewModeCombo.Items.Add(new ComboBoxItem { Tag = "unplug" });
     }
 
+    private void InitWheelSwitchCombo()
+    {
+        WheelSwitchCombo.Items.Clear();
+        WheelSwitchCombo.Items.Add(new ComboBoxItem { Tag = "Wrap" });
+        WheelSwitchCombo.Items.Add(new ComboBoxItem { Tag = "Clamp" });
+        WheelSwitchCombo.Items.Add(new ComboBoxItem { Tag = "Disabled" });
+    }
+
     // ---------------- 本地化 ----------------
 
     private void ApplyLocalization()
@@ -141,6 +152,7 @@ public partial class SettingsWindow : Window
         WinTitle.Text = Localization.SettingsTitle;
         TabGeneralText.Text = Localization.TabGeneral;
         TabAnimationText.Text = Localization.TabAnimation;
+        TabPluginsText.Text = Localization.Plugins;
         TabNotificationsText.Text = Localization.TabNotifications;
         TabAboutText.Text = Localization.TabAbout;
         LabelScale.Text = Localization.LabelScale;
@@ -150,6 +162,7 @@ public partial class SettingsWindow : Window
         LabelContractedTimeout.Text = Localization.LabelContractedTimeout;
         LabelPosition.Text = Localization.LabelPosition;
         LabelMonitor.Text = Localization.LabelMonitor;
+        LabelWheelSwitch.Text = Localization.LabelWheelSwitch;
         LabelLanguage.Text = Localization.LabelLanguage;
         LabelAutoStart.Text = Localization.LabelAutoStart;
         DescAutoStartText.Text = Localization.DescAutoStart;
@@ -193,6 +206,13 @@ public partial class SettingsWindow : Window
             if (PositionCombo.Items[0] is ComboBoxItem pi0) pi0.Content = Localization.PosTopCenter;
             if (PositionCombo.Items[1] is ComboBoxItem pi1) pi1.Content = Localization.PosTopRight;
             if (PositionCombo.Items[2] is ComboBoxItem pi2) pi2.Content = Localization.PosTopLeft;
+        }
+
+        if (WheelSwitchCombo.Items.Count >= 3)
+        {
+            if (WheelSwitchCombo.Items[0] is ComboBoxItem wi0) wi0.Content = Localization.WheelSwitchWrap;
+            if (WheelSwitchCombo.Items[1] is ComboBoxItem wi1) wi1.Content = Localization.WheelSwitchClamp;
+            if (WheelSwitchCombo.Items[2] is ComboBoxItem wi2) wi2.Content = Localization.WheelSwitchDisabled;
         }
 
         if (PreviewModeCombo.Items.Count >= 3)
@@ -240,6 +260,7 @@ public partial class SettingsWindow : Window
         RippleIntensitySlider.Value = s.RippleIntensity;
         RippleSpreadSlider.Value = s.RippleSpread;
         PositionCombo.SelectedIndex = (int)s.HudPosition;
+        WheelSwitchCombo.SelectedIndex = (int)s.WheelSwitch;
         // 下拉第一项是「主显示器（默认）」(-1)，物理显示器 i 对应下拉第 i+1 项
         int monitorSel = s.MonitorIndex < 0 ? 0 : s.MonitorIndex + 1;
         MonitorCombo.SelectedIndex = monitorSel >= 0 && monitorSel < MonitorCombo.Items.Count
@@ -275,6 +296,7 @@ public partial class SettingsWindow : Window
         RippleIntensity = Math.Round(RippleIntensitySlider.Value, 2),
         RippleSpread = Math.Round(RippleSpreadSlider.Value, 2),
         HudPosition = (HudPosition)PositionCombo.SelectedIndex,
+        WheelSwitch = (WheelSwitchMode)Math.Clamp(WheelSwitchCombo.SelectedIndex, 0, 2),
         MonitorIndex = MonitorCombo.SelectedItem is ComboBoxItem item && item.Tag is int idx
             ? idx
             : 0,
@@ -291,12 +313,47 @@ public partial class SettingsWindow : Window
         EnableAutoStart = AutoStartSwitch.IsChecked == true,
     };
 
+    // ---------------- 插件设置页 ----------------
+
+    /// <summary>列出贡献设置面板的插件（宿主只按 IPluginSettingsPage 契约认识它们）。</summary>
+    private void InitPluginPages()
+    {
+        var pages = _hud.SettingsPages.ToList();
+
+        if (pages.Count == 0)
+        {
+            NoPluginSettingsText.Text = Localization.NoPluginSettings;
+            NoPluginSettingsText.IsVisible = true;
+            return;
+        }
+
+        foreach (var page in pages)
+        {
+            var btn = new Button
+            {
+                Content = page.SettingsTitle,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                Padding = new Thickness(12, 8),
+                CornerRadius = new CornerRadius(8),
+                Background = new SolidColorBrush(Color.Parse("#262628")),
+                Foreground = Brushes.White,
+            };
+            btn.Click += (_, _) => PluginHost.Content = page.CreateSettingsView();
+            PluginList.Children.Add(btn);
+        }
+
+        // 默认展示第一个插件的设置面板
+        PluginHost.Content = pages[0].CreateSettingsView();
+    }
+
     // ---------------- Tab 切换 ----------------
 
     private void SwitchTab(Border tabBtn, StackPanel panel)
     {
         TabGeneralBtn.Background = Brushes.Transparent;
         TabAnimationBtn.Background = Brushes.Transparent;
+        TabPluginsBtn.Background = Brushes.Transparent;
         TabNotificationsBtn.Background = Brushes.Transparent;
         TabAboutBtn.Background = Brushes.Transparent;
 
@@ -304,6 +361,7 @@ public partial class SettingsWindow : Window
 
         GeneralPanel.IsVisible = panel == GeneralPanel;
         AnimationPanel.IsVisible = panel == AnimationPanel;
+        PluginsPanel.IsVisible = panel == PluginsPanel;
         NotificationsPanel.IsVisible = panel == NotificationsPanel;
         AboutPanel.IsVisible = panel == AboutPanel;
     }
@@ -484,7 +542,8 @@ public static class MessageBox
         var okBtn = new Button
         {
             Content = Localization.BtnDownload,
-            Width = 80, Height = 32,
+            Width = 80,
+            Height = 32,
             Background = new SolidColorBrush(Color.Parse("#C6CA4C")),
             Foreground = new SolidColorBrush(Color.Parse("#1E1E1E")),
             FontWeight = FontWeight.SemiBold,
@@ -500,7 +559,8 @@ public static class MessageBox
             var cancelBtn = new Button
             {
                 Content = Localization.BtnCancel,
-                Width = 80, Height = 32,
+                Width = 80,
+                Height = 32,
                 CornerRadius = new CornerRadius(6),
                 HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
                 VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center,

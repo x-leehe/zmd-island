@@ -21,7 +21,7 @@ namespace EndfieldCharge.Host.Plugins.Music;
 ///     进度用 250ms 本地插值 tick 平滑，且只在「正在播放 **且** 岛可见」时干活。
 /// 宿主只按契约认识它，不引用本类型。
 /// </summary>
-public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, IContextMenuContributor
+public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, IContextMenuContributor, IPluginSettingsPage
 {
     /// <summary>
     /// 启动即连接 SMTC？
@@ -39,6 +39,7 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
     private string _dataDirectory = string.Empty;
 
     private IPluginContext? _context;
+    private MusicSettings _settings = new();
     private bool _wasPlaying;
     private bool _baselineSet;          // 首帧只作基线：启动时本来就在播不该弹岛
     private DateTime _lastAutoExpandUtc;
@@ -136,7 +137,14 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
     {
         _dataDirectory = context.DataDirectory;
         _context = context;
+        _settings = MusicSettingsStore.Load(_dataDirectory);
+        _view.ApplyPreferences(_settings.ShowTitleWhenNoLyric, _settings.ShowVisualizer);
+        Logger.Info($"Music: 设置已加载（展开态超时 {ExpandedTimeoutSeconds:F1}s（下限 3s） / " +
+                    $"无歌词显示歌名 {OnOff(_settings.ShowTitleWhenNoLyric)} / " +
+                    $"可视化器 {OnOff(_settings.ShowVisualizer)} / 歌词来源 {_settings.LyricSource}）");
     }
+
+    private static string OnOff(bool value) => value ? "开" : "关";
 
     public void Shutdown()
     {
@@ -182,11 +190,11 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
     /// <summary>数据自给（SMTC），不使用宿主电池内容。</summary>
     public bool UsesHostContent => false;
 
-    /// <summary>常驻等待态：不被宿主空闲计时器收缩 / 隐藏。</summary>
-    public bool AutoIdleTimeout => false;
-
     /// <summary>窗口加高，容纳 560×160 展开态。</summary>
     public double WindowHeight => 220d;
+
+    /// <summary>展开态超时（秒）：最低 3——每个状态都必须有生命周期超时。</summary>
+    public double ExpandedTimeoutSeconds => Math.Max(3d, _settings.ExpandedTimeoutSeconds);
 
     // ---------------- IIslandExpandToggle ----------------
 
@@ -213,4 +221,18 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
         Priority = priority,
         Command = command,
     };
+
+    // ---------------- IPluginSettingsPage ----------------
+
+    public string SettingsTitle => DisplayName;
+
+    public Control CreateSettingsView() => new MusicSettingsView(() => _settings, UpdateSettings);
+
+    /// <summary>写回设置：持久化到插件数据目录，并立即作用到岛的视觉。</summary>
+    private void UpdateSettings(MusicSettings settings)
+    {
+        _settings = settings;
+        MusicSettingsStore.Save(_dataDirectory, settings);
+        _view.ApplyPreferences(settings.ShowTitleWhenNoLyric, settings.ShowVisualizer);
+    }
 }

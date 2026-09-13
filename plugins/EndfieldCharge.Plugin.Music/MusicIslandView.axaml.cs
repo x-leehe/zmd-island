@@ -27,6 +27,8 @@ public partial class MusicIslandView : UserControl
     private bool _expanded;
     private bool _contracted;
     private bool _revealPending;
+    private bool _showTitleWhenNoLyric = true;
+    private bool _showVisualizer = true;
 
     public MusicIslandView()
     {
@@ -88,10 +90,13 @@ public partial class MusicIslandView : UserControl
     }
 
     private void ApplyFrame()
-    {        var f = _frame;
+    {
+        var f = _frame;
 
-        // 等待态那一行是「当前歌词」位：歌词模块尚未接入时退回曲名，避免整行空白
-        WaitLyric.Text = string.IsNullOrEmpty(f.LyricCurrent) ? f.Title ?? string.Empty : f.LyricCurrent;
+        // 等待态那一行是「当前歌词」位：歌词模块尚未接入时按设置退回曲名
+        WaitLyric.Text = string.IsNullOrEmpty(f.LyricCurrent)
+            ? (_showTitleWhenNoLyric ? f.Title ?? string.Empty : string.Empty)
+            : f.LyricCurrent;
 
         UnfoldTitleText.Text = f.Title ?? "--";
         UnfoldArtistText.Text = f.Artist ?? string.Empty;
@@ -125,6 +130,19 @@ public partial class MusicIslandView : UserControl
         double stroke = RingSize * DesignTokens.RingThickness / DesignTokens.RingDiameter;
         WaitRingArc.Data = RingGeometry.Build(progress, RingSize, stroke);
         ContractRingArc.Data = RingGeometry.Build(progress, RingSize, stroke);
+    }
+
+    /// <summary>应用插件设置里的视觉偏好（宿主设置窗口「插件 → 音乐」改动后立即回流）。</summary>
+    public void ApplyPreferences(bool showTitleWhenNoLyric, bool showVisualizer)
+    {
+        _showTitleWhenNoLyric = showTitleWhenNoLyric;
+        _showVisualizer = showVisualizer;
+
+        SpectrumPath.IsVisible = showVisualizer;
+        foreach (var bar in new[] { WaitBar1, WaitBar2, WaitBar3, ContractBar1, ContractBar2, ContractBar3 })
+            bar.IsVisible = showVisualizer;
+
+        ApplyFrame();
     }
 
     /// <summary>播放/暂停：只发出请求；真实状态由媒体源下一帧回填（避免本地状态与 SMTC 打架）。</summary>

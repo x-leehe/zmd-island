@@ -58,12 +58,13 @@ public interface IIslandSkin
     /// </summary>
     bool UsesHostContent => true;
 
-    /// <summary>
-    /// 等待态 / 收缩态超时后是否自动收缩、隐藏。
-    /// <c>false</c> = 常驻等待态（如音乐岛，不被空闲计时器收走）。
-    /// </summary>
-    bool AutoIdleTimeout => true;
-
     /// <summary>承载本皮肤的窗口高度（DIP）：不同皮肤展开态高度不同（电池 160 / 音乐 220）。</summary>
     double WindowHeight => 160d;
+
+    /// <summary>
+    /// 展开态（宿主 <see cref="IslandVisualState.Response"/>）无交互多久回落到等待态（秒）。
+    /// 每个状态都有自己的生命周期（超时）：宿主对小于 3 秒的声明会按下限执行，
+    /// 因此不存在"不回落"的皮肤。
+    /// </summary>
+    double ExpandedTimeoutSeconds => 6d;
 }

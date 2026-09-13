@@ -11,6 +11,8 @@
     <RootNamespace>EndfieldCharge.Plugin.Music</RootNamespace>
     <PlatformTarget>x64</PlatformTarget>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- MusicSettingsView 由插件在代码中带参构造，XAML 运行时加载器警告（AVLN3001）为误报 -->
+    <NoWarn>$(NoWarn);AVLN3001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

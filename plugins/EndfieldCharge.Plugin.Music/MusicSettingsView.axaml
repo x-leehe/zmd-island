@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="EndfieldCharge.Host.Plugins.Music.MusicSettingsView"
+             FontFamily="HarmonyOS Sans SC, HarmonyOS Sans, Inter, Microsoft YaHei UI, sans-serif">
+  <!-- 音乐插件的设置面板：宿主「插件」页承载，改动即保存并立即生效 -->
+  <StackPanel Spacing="14">
+    <Border Background="#262628" CornerRadius="10" Padding="16,14">
+      <StackPanel Spacing="14">
+
+        <TextBlock x:Name="SectionText" FontSize="13" FontWeight="SemiBold"
+                   Foreground="#C6CA4C" LetterSpacing="1" Text="音乐岛"/>
+
+        <StackPanel Spacing="5">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="LabelExpandedTimeout" FontSize="12" Foreground="#888888"/>
+            <TextBlock x:Name="ExpandedTimeoutValue" Grid.Column="1" FontSize="12"
+                       Foreground="#888888" Width="60" TextAlignment="Right"/>
+          </Grid>
+          <Slider x:Name="ExpandedTimeoutSlider" Minimum="3" Maximum="30" TickFrequency="0.5"
+                  Value="6" IsSnapToTickEnabled="True"/>
+        </StackPanel>
+
+        <StackPanel Spacing="5">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="LabelShowTitle" FontSize="12" Foreground="#888888"
+                       VerticalAlignment="Center"/>
+            <ToggleSwitch x:Name="ShowTitleSwitch" Grid.Column="1" OnContent="" OffContent=""/>
+          </Grid>
+        </StackPanel>
+
+        <StackPanel Spacing="5">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="LabelVisualizer" FontSize="12" Foreground="#888888"
+                       VerticalAlignment="Center"/>
+            <ToggleSwitch x:Name="VisualizerSwitch" Grid.Column="1" OnContent="" OffContent=""/>
+          </Grid>
+        </StackPanel>
+
+        <StackPanel Spacing="5">
+          <TextBlock x:Name="LabelLyricSource" FontSize="12" Foreground="#888888"/>
+          <ComboBox x:Name="LyricSourceCombo" HorizontalAlignment="Stretch"/>
+        </StackPanel>
+
+        <TextBlock x:Name="SavedText" FontSize="11" Foreground="#C6CA4C" Opacity="0"/>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>
