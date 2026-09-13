@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Threading;
 using EndfieldCharge.Animations;
@@ -430,6 +431,12 @@ public partial class HudWindow : Window, IIslandHost
         {
             var win = new SettingsWindow(_settings, this);
             win.Show();
+        };
+        menu.ExitClicked += () =>
+        {
+            // 与托盘菜单「退出」同一语义：走桌面生命周期，触发 App.OnDesktopExit 收尾
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                desktop.Shutdown();
         };
         menu.MenuClosed += OnContextMenuClosed;
 

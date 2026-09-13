@@ -38,6 +38,9 @@ public partial class IslandContextMenuWindow : Window
 {
     public event Action? SettingsClicked;
 
+    /// <summary>「退出」条目被点击：宿主据此关闭应用（与托盘菜单的退出项同一语义）。</summary>
+    public event Action? ExitClicked;
+
     /// <summary>菜单真正关闭（含外部点击 / 退场动画后），宿主借此恢复岛的空闲计时。</summary>
     public event Action? MenuClosed;
 
@@ -132,8 +135,20 @@ public partial class IslandContextMenuWindow : Window
                 SettingsClicked?.Invoke();
             },
         };
+        var exit = new MenuContribution
+        {
+            Id = "host.exit",
+            Header = Localization.Exit,
+            Target = MenuTarget.Island,
+            Section = MenuSection.HostFixed,
+            Command = () =>
+            {
+                RequestClose();
+                ExitClicked?.Invoke();
+            },
+        };
 
-        var hostFixed = new[] { topmost, plugins, settings };
+        var hostFixed = new[] { topmost, plugins, settings, exit };
         _pluginsItem = plugins;
         _contributions = PluginMenuComposer.Compose(MenuTarget.Island, registry, hostFixed);
 
