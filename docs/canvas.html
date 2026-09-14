@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>布局画布 · 灵动岛</title>
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/canvas.css">
+</head>
+<body class="page-canvas">
+
+  <header class="toolbar">
+    <div class="toolbar-left">
+      <a class="btn btn-ghost" href="index.html">← 插件岛</a>
+      <div class="toolbar-title">布局画布 <span class="dim">· 灵动岛</span></div>
+    </div>
+
+    <div class="toolbar-center">
+      <div class="seg" id="stateBar">
+        <button type="button" class="seg-btn" data-state="wait">等待态</button>
+        <button type="button" class="seg-btn" data-state="unfold">展开态</button>
+        <button type="button" class="seg-btn" data-state="contract">收缩态</button>
+        <button type="button" class="seg-btn" data-state="custom">自定义</button>
+      </div>
+      <div class="size-box" id="sizeBox">
+        <input type="number" id="sizeW" min="120" max="2000" step="10" aria-label="岛宽">
+        <span class="times">×</span>
+        <input type="number" id="sizeH" min="40" max="1200" step="10" aria-label="岛高">
+        <span class="dim">px</span>
+      </div>
+    </div>
+
+    <div class="toolbar-right">
+      <span class="dim" style="font-size:11px">缩放</span>
+      <button type="button" class="btn" id="btnZoomOut" title="缩小">−</button>
+      <span class="chip" id="zoomLabel" style="min-width:52px;text-align:center">100%</span>
+      <button type="button" class="btn" id="btnZoomIn" title="放大">＋</button>
+      <button type="button" class="btn" id="btnZoom100" title="按设计尺寸 1:1">1:1</button>
+      <button type="button" class="btn" id="btnZoomActual" title="按实际渲染比例 (×0.8)">×0.8 实际</button>
+      <span class="divider"></span>
+      <label class="toggle"><input type="checkbox" id="tglGrid" checked><span>网格吸附</span></label>
+      <input type="number" id="gridSize" class="grid-num" min="1" max="100" step="1" value="8" title="网格密度（px）：吸附步长 = 可视网格间距"><span class="dim" style="font-size:11px">px</span>
+      <label class="toggle"><input type="checkbox" id="tglGuides" checked><span>对齐参考线</span></label>
+      <label class="toggle"><input type="checkbox" id="tglNotes" checked><span>注释</span></label>
+      <label class="toggle"><input type="checkbox" id="tglPreview"><span>预览</span></label>
+      <span class="divider"></span>
+      <button type="button" class="btn" id="btnReset">重置本状态</button>
+      <button type="button" class="btn" id="btnExport">导出 JSON</button>
+      <button type="button" class="btn" id="btnExportAll">导出全部</button>
+      <button type="button" class="btn" id="btnImport">导入 JSON</button>
+      <input type="file" id="importInput" accept="application/json,.json" hidden>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="palette" id="palette" aria-label="组件调色板"></aside>
+
+    <section class="workbench" id="workbench">
+      <div class="stage" id="stage">
+        <div class="island" id="island">
+          <div class="island-items" id="islandItems"></div>
+          <div class="guides-layer" id="guides"></div>
+        </div>
+        <div class="island-size" id="islandSize">岛 560 × 60 px</div>
+      </div>
+    </section>
+
+    <aside class="props" id="propsPanel" aria-label="属性面板"></aside>
+  </main>
+
+  <script src="assets/js/island-spec.js"></script>
+  <script src="assets/js/components.js"></script>
+  <!-- 已归档的设计：作为「模板」数据被画布读取（不再是各自的页面） -->
+  <script src="assets/js/music-designs.js"></script>
+  <script src="assets/js/weather-designs.js"></script>
+  <script src="assets/js/monitor-designs.js"></script>
+  <script src="assets/js/notify-designs.js"></script>
+  <script src="assets/js/clipboard-designs.js"></script>
+  <script src="assets/js/file-designs.js"></script>
+  <script src="assets/js/settings-designs.js"></script>
+  <script src="assets/js/canvas.js"></script>
+  <script>
+    /* 通用画布：不绑定任何插件，只关心「状态 → 视觉」。
+       一个画布装多个设计——工具栏选「模板」载入，用「设计」名区分，导出/导入 JSON 归档。 */
+    window.__islandEngine = window.IslandCanvas.init({
+      storageKey: 'endfield.layout.canvas',
+      pageName: 'canvas',
+      designName: 'canvas',
+      states: window.IslandSpec.STATES,
+      defaultState: 'wait'
+    });
+    /* 支持 canvas.html?t=clipboard 直接载入某个模板（index 的卡片就是这么跳的） */
+    (function () {
+      var m = /[?&]t=([^&]+)/.exec(window.location.search);
+      if (m) window.__islandEngine._loadTemplate(decodeURIComponent(m[1]));
+    })();
+  </script>
+</body>
+</html>

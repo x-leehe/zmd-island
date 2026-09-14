@@ -1,0 +1,772 @@
+{
+  "app": "island-layout-canvas",
+  "version": 3,
+  "page": "file",
+  "active": "custom",
+  "states": [
+    {
+      "id": "custom",
+      "name": "自定义",
+      "w": 560,
+      "h": 340
+    },
+    {
+      "id": "cmtzttjqo",
+      "name": "唤起态",
+      "w": 560,
+      "h": 150
+    }
+  ],
+  "layouts": {
+    "wait": {
+      "spec": {
+        "width": 560,
+        "height": 60,
+        "panelOpacity": 1
+      },
+      "components": [
+        {
+          "id": "cw9",
+          "type": "note",
+          "x": 16,
+          "y": 80,
+          "w": 528,
+          "h": 80,
+          "z": 20,
+          "opacity": 1,
+          "props": {
+            "text": "等待态——路由到“唤起态”。"
+          }
+        }
+      ]
+    },
+    "unfold": {
+      "spec": {
+        "width": 560,
+        "height": 160,
+        "panelOpacity": 1
+      },
+      "components": [
+        {
+          "id": "cu99",
+          "type": "note",
+          "x": 16,
+          "y": 168,
+          "w": 528,
+          "h": 96,
+          "z": 30,
+          "opacity": 1,
+          "props": {
+            "text": "文件展开态（560×160）——同一状态的两个瞬间，用户拖动文件时出现。拥有和“充电”一致的动画。实机只呈现其一，并排只是对照：\n左画板「待接收」：64×64 云图标 + 「//FILE DETECTED」小字 + 主文案「可将文件拖至此处」+ 副文案「进行「协议传输」或更多操作……」\n右画板「已接收」：图标换成check（此处图标占位） + 「//ADDITION COMPLETE」+「文件已添加」+「请在相关面板继续操作」\n两板同构，统一规则：内容左内边距 40、图标 64、文字自图标右侧 32 起、三行文字 y36 / y60 / y100（fs14 / fs20 / fs14），整块在 160 高里上下各留 36。\n「//」开头的小字是 HUD 风格的批注行，实现时用浅色等宽感字体。\n命名借自《明日方舟：终末地》的「协议核心」体系：把文件传出去＝「协议传输」（底层走 LocalSend），把文件归类整理＝「协议整理」；两者都收在「执行：」这个动作选择里。\n协议传输的容量上限：**待传文件总体积 2GB，且最多 20 个文件**（两者任一超出即视为超限）。\n协议整理不受此限制；超限只影响传输——文件照常收下、照常列在卡上，只保留删除等操作，界面上以「协议超载！」提示（示例里的 Windows-11.iso 7.5GB 单条就已超限）。"
+          }
+        },
+        {
+          "id": "c1w83n",
+          "type": "icon",
+          "x": 40,
+          "y": 48,
+          "w": 64,
+          "h": 64,
+          "z": 31,
+          "opacity": 1,
+          "props": {
+            "name": "cloud",
+            "ratio": 0.72,
+            "accent": "#ffffff"
+          }
+        },
+        {
+          "id": "c2x1u2",
+          "type": "text",
+          "x": 136,
+          "y": 60,
+          "w": 208,
+          "h": 40,
+          "z": 32,
+          "opacity": 1,
+          "props": {
+            "text": "可将文件拖至此处",
+            "fontSize": 20
+          }
+        },
+        {
+          "id": "c3y2x8",
+          "type": "text",
+          "x": 136,
+          "y": 100,
+          "w": 216,
+          "h": 24,
+          "z": 33,
+          "opacity": 1,
+          "props": {
+            "text": "进行「协议传输」或更多操作……",
+            "fontSize": 14
+          }
+        },
+        {
+          "id": "c40hcn",
+          "type": "text",
+          "x": 136,
+          "y": 36,
+          "w": 264,
+          "h": 24,
+          "z": 34,
+          "opacity": 1,
+          "props": {
+            "text": "//FILE DETECTED",
+            "fontSize": 14
+          }
+        },
+        {
+          "id": "c518tk",
+          "type": "panelUnfold",
+          "x": 592,
+          "y": 0,
+          "w": 560,
+          "h": 160,
+          "z": 35,
+          "opacity": 1,
+          "props": {
+            "label": "展开态",
+            "showLabel": false,
+            "radius": 0
+          }
+        },
+        {
+          "id": "c61fo5",
+          "type": "icon",
+          "x": 632,
+          "y": 48,
+          "w": 64,
+          "h": 64,
+          "z": 36,
+          "opacity": 1,
+          "props": {
+            "name": "favorite",
+            "ratio": 0.72,
+            "accent": "#ffffff"
+          }
+        },
+        {
+          "id": "c72igg",
+          "type": "text",
+          "x": 720,
+          "y": 60,
+          "w": 128,
+          "h": 40,
+          "z": 37,
+          "opacity": 1,
+          "props": {
+            "text": "文件已添加",
+            "fontSize": 20
+          }
+        },
+        {
+          "id": "c830ng",
+          "type": "text",
+          "x": 720,
+          "y": 36,
+          "w": 264,
+          "h": 24,
+          "z": 38,
+          "opacity": 1,
+          "props": {
+            "text": "//ADDITION COMPLETE",
+            "fontSize": 14
+          }
+        },
+        {
+          "id": "c93tk4",
+          "type": "text",
+          "x": 720,
+          "y": 100,
+          "w": 288,
+          "h": 24,
+          "z": 39,
+          "opacity": 1,
+          "props": {
+            "text": "请在相关面板继续操作",
+            "fontSize": 14
+          }
+        }
+      ]
+    },
+    "contract": {
+      "spec": {
+        "width": 200,
+        "height": 60,
+        "panelOpacity": 1
+      },
+      "components": [
+        {
+          "id": "cc9",
+          "type": "note",
+          "x": 16,
+          "y": 72,
+          "w": 168,
+          "h": 80,
+          "z": 20,
+          "opacity": 1,
+          "props": {
+            "text": "不设计收缩态"
+          }
+        }
+      ]
+    },
+    "cmtzttjqo": {
+      "spec": {
+        "width": 560,
+        "height": 150,
+        "panelOpacity": 0
+      },
+      "components": [
+        {
+          "id": "c2vsru",
+          "type": "panelWait",
+          "x": 56,
+          "y": 40,
+          "w": 448,
+          "h": 40,
+          "z": 1,
+          "opacity": 0.45,
+          "props": {
+            "label": "等待态",
+            "showLabel": false,
+            "radius": 0
+          }
+        },
+        {
+          "id": "c1udw7",
+          "type": "panelWait",
+          "x": 24,
+          "y": 26,
+          "w": 512,
+          "h": 48,
+          "z": 2,
+          "opacity": 0.6,
+          "props": {
+            "label": "等待态",
+            "showLabel": false,
+            "radius": 0
+          }
+        },
+        {
+          "id": "c3wqt4",
+          "type": "icon",
+          "x": 24,
+          "y": 10,
+          "w": 40,
+          "h": 40,
+          "z": 4,
+          "opacity": 1,
+          "props": {
+            "name": "assignment",
+            "ratio": 0.72
+          }
+        },
+        {
+          "id": "c4wxlv",
+          "type": "text",
+          "x": 72,
+          "y": 10,
+          "w": 224,
+          "h": 40,
+          "z": 5,
+          "opacity": 1,
+          "props": {
+            "text": "项目设计.docx 2MB",
+            "fontSize": 20
+          }
+        },
+        {
+          "id": "c7zhl3",
+          "type": "button",
+          "x": 496,
+          "y": 10,
+          "w": 40,
+          "h": 40,
+          "z": 7,
+          "opacity": 1,
+          "props": {
+            "name": "delete",
+            "shape": "circle",
+            "variant": "solid",
+            "toggled": false,
+            "ratio": 0.62
+          }
+        },
+        {
+          "id": "c8a1aa",
+          "type": "note",
+          "x": 24,
+          "y": 200,
+          "w": 512,
+          "h": 308,
+          "z": 8,
+          "opacity": 1,
+          "props": {
+            "text": "唤起态（560×150）：由鼠标滚轮翻页时切出这个界面。\n上半 60 高是文件卡：类型图标 + 「文件名 大小」+ 删除键，尺寸与左右边距和等待态完全一致（左 24 / 右 24）。\n超限的处理：文件照常收下并列出，只保留删除等操作，不参与协议传输；协议整理不受影响。徽标是条件显示，只在超限（进度占满）时出现（上限＝待传总量 2GB / 20 个文件）。（与“自定义展开态”相同）\n卡片下方露出两层半透明 panel（前层自 y26、后层自 y40 起），表示「队列里还有别的文件」，像百叶窗尚未拉开。\n下半 60 高（y90）是动作条：「执行：」+ 动作选择（协议传输 / 协议整理）+ 状态徽标 + 执行（check，图标占位） / 删除 / 收起三键，底部一条 8px 进度。\n那条进度条就是传输容量的反馈：未超限时它说明一切（越满＝额度用得越多），占满即超限并转为告警——不需要再额外的文字额度指示。\n声明的面板本体是透明的，让按钮悬浮在胶囊外，营造百叶窗的体感；下方大号展开键支持鼠标拖拽，也支持点击，展开后转到展开态。\n状态高取 150，是为了同时容下两段胶囊与中间露出的牌堆。"
+          }
+        },
+        {
+          "id": "c14iad",
+          "type": "panelWait",
+          "x": 0,
+          "y": 0,
+          "w": 560,
+          "h": 60,
+          "z": 3,
+          "opacity": 1,
+          "props": {
+            "label": "等待态",
+            "showLabel": false,
+            "radius": 0
+          }
+        },
+        {
+          "id": "c17mnsg",
+          "type": "panelWait",
+          "x": 0,
+          "y": 90,
+          "w": 560,
+          "h": 60,
+          "z": 9,
+          "opacity": 1,
+          "props": {
+            "label": "等待态",
+            "showLabel": false,
+            "radius": 0
+          }
+        },
+        {
+          "id": "c19nrph",
+          "type": "text",
+          "x": 24,
+          "y": 110,
+          "w": 54,
+          "h": 20,
+          "z": 10,
+          "opacity": 1,
+          "props": {
+            "text": "执行：",
+            "fontSize": 16
+          }
+        },
+        {
+          "id": "c20oiol",
+          "type": "select",
+          "x": 78,
+          "y": 100,
+          "w": 160,
+          "h": 40,
+          "z": 11,
+          "opacity": 1,
+          "props": {
+            "text": "协议传输",
+            "fontSize": 18
+          }
+        },
+        {
+          "id": "c22qe17",
+          "type": "button",
+          "x": 392,
+          "y": 104,
+          "w": 40,
+          "h": 40,
+          "z": 13,
+          "opacity": 1,
+          "props": {
+            "name": "check",
+            "shape": "circle",
+            "variant": "solid",
+            "toggled": false,
+            "ratio": 0.62
+          }
+        },
+        {
+          "id": "c23qfxs",
+          "type": "button",
+          "x": 443,
+          "y": 104,
+          "w": 40,
+          "h": 40,
+          "z": 14,
+          "opacity": 1,
+          "props": {
+            "name": "delete",
+            "shape": "circle",
+            "variant": "solid",
+            "toggled": false,
+            "ratio": 0.62
+          }
+        },
+        {
+          "id": "c25qpbz",
+          "type": "expand",
+          "x": 496,
+          "y": 104,
+          "w": 40,
+          "h": 40,
+          "z": 15,
+          "opacity": 1,
+          "props": {
+            "expanded": false
+          }
+        },
+        {
+          "id": "c26s2u4",
+          "type": "progress",
+          "x": 24,
+          "y": 144,
+          "w": 504,
+          "h": 8,
+          "z": 16,
+          "opacity": 1,
+          "props": {
+            "progress": 0.51,
+            "showTime": false,
+            "accent": "#ff4d4f",
+            "warnAt": 0.6
+          }
+        }
+      ]
+    },
+    "custom": {
+      "spec": {
+        "width": 560,
+        "height": 340,
+        "panelOpacity": 0
+      },
+      "components": [
+        {
+          "id": "c0aaaa",
+          "type": "panelWait",
+          "x": 0,
+          "y": 0,
+          "w": 560,
+          "h": 64,
+          "z": 2,
+          "opacity": 1,
+          "props": {
+            "label": "等待态",
+            "showLabel": false,
+            "radius": 30
+          }
+        },
+        {
+          "id": "c5vgvd",
+          "type": "icon",
+          "x": 24,
+          "y": 12,
+          "w": 40,
+          "h": 40,
+          "z": 6,
+          "opacity": 1,
+          "props": {
+            "name": "assignment",
+            "ratio": 0.72
+          }
+        },
+        {
+          "id": "c11rvn",
+          "type": "text",
+          "x": 72,
+          "y": 12,
+          "w": 356,
+          "h": 40,
+          "z": 8,
+          "opacity": 1,
+          "props": {
+            "text": "Windows-11.iso 7.5GB",
+            "fontSize": 20
+          }
+        },
+        {
+          "id": "c239ff",
+          "type": "button",
+          "x": 496,
+          "y": 12,
+          "w": 40,
+          "h": 40,
+          "z": 9,
+          "opacity": 1,
+          "props": {
+            "name": "delete",
+            "shape": "circle",
+            "variant": "solid",
+            "toggled": false,
+            "ratio": 0.62
+          }
+        },
+        {
+          "id": "c1scbx",
+          "type": "panelWait",
+          "x": 0,
+          "y": 84,
+          "w": 560,
+          "h": 64,
+          "z": 3,
+          "opacity": 1,
+          "props": {
+            "label": "等待态",
+            "showLabel": false,
+            "radius": 30
+          }
+        },
+        {
+          "id": "c4ta7k",
+          "type": "icon",
+          "x": 24,
+          "y": 96,
+          "w": 40,
+          "h": 40,
+          "z": 5,
+          "opacity": 1,
+          "props": {
+            "name": "assignment",
+            "ratio": 0.72
+          }
+        },
+        {
+          "id": "c56vue",
+          "type": "text",
+          "x": 72,
+          "y": 96,
+          "w": 356,
+          "h": 40,
+          "z": 11,
+          "opacity": 1,
+          "props": {
+            "text": "最终效果2.png 2.4MB",
+            "fontSize": 20
+          }
+        },
+        {
+          "id": "c1fjzb",
+          "type": "button",
+          "x": 496,
+          "y": 96,
+          "w": 40,
+          "h": 40,
+          "z": 13,
+          "opacity": 1,
+          "props": {
+            "name": "delete",
+            "shape": "circle",
+            "variant": "solid",
+            "toggled": false,
+            "ratio": 0.62
+          }
+        },
+        {
+          "id": "c2sjor",
+          "type": "panelWait",
+          "x": 0,
+          "y": 168,
+          "w": 560,
+          "h": 64,
+          "z": 4,
+          "opacity": 1,
+          "props": {
+            "label": "等待态",
+            "showLabel": false,
+            "radius": 30
+          }
+        },
+        {
+          "id": "c6w92m",
+          "type": "icon",
+          "x": 24,
+          "y": 180,
+          "w": 40,
+          "h": 40,
+          "z": 7,
+          "opacity": 1,
+          "props": {
+            "name": "assignment",
+            "ratio": 0.72
+          }
+        },
+        {
+          "id": "c2gow8",
+          "type": "text",
+          "x": 72,
+          "y": 180,
+          "w": 356,
+          "h": 40,
+          "z": 14,
+          "opacity": 1,
+          "props": {
+            "text": "论AI如何赋能产业.pptx 10MB",
+            "fontSize": 20
+          }
+        },
+        {
+          "id": "c5jhl3",
+          "type": "button",
+          "x": 496,
+          "y": 180,
+          "w": 40,
+          "h": 40,
+          "z": 16,
+          "opacity": 1,
+          "props": {
+            "name": "delete",
+            "shape": "circle",
+            "variant": "solid",
+            "toggled": false,
+            "ratio": 0.62
+          }
+        },
+        {
+          "id": "c6mn6s",
+          "type": "button",
+          "x": 440,
+          "y": 276,
+          "w": 40,
+          "h": 40,
+          "z": 17,
+          "opacity": 1,
+          "props": {
+            "name": "delete",
+            "shape": "circle",
+            "variant": "solid",
+            "toggled": false,
+            "ratio": 0.62
+          }
+        },
+        {
+          "id": "c8o7zb",
+          "type": "expand",
+          "x": 496,
+          "y": 276,
+          "w": 40,
+          "h": 40,
+          "z": 18,
+          "opacity": 1,
+          "props": {
+            "expanded": true
+          }
+        },
+        {
+          "id": "c9aaaa",
+          "type": "note",
+          "x": 44,
+          "y": 367,
+          "w": 489,
+          "h": 155,
+          "z": 19,
+          "opacity": 1,
+          "props": {
+            "text": "自定义展开态（560×340）：本模块由“等待态/唤起态”展开时出现。\n上方三条是文件条目样张（.iso / .png / .pptx），行距 84：类型图标 + 「文件名 大小」+ 右侧删除键，左右边距与真实稿一致（24 / 24）。\n第一条 .iso，这张卡是 Windows-11.iso 7.5GB —— 单条就超过了 2GB 的传输总量上限，所以动作条上挂着「协议超载！」徽标。**故意取超限样本**（传输上限＝待传总量 2GB / 20 个文件），用来对照「协议超载！」的呈现；.png 2.4MB 与 .pptx 10MB 两条在限内。\n右侧那根 8×184 的竖条表示：条目超过 3 条时列表可滚动——在本面板内滚轮**只负责滚动内容，不切换面板**，直到以任何方式退出该面板。\n下方是动作条的放大样：「执行：」+ 动作选择（协议传输 / 协议整理）+ 状态徽标 + 执行（借用图标，实际应为check） / 删除 / 收起；底部那条进度条＝传输容量占用。\n放大样里进度拉到 100%（画\"占满 / 超限\"的样子），唤起态实稿是 45%（画常规占用），两处不是矛盾。\n声明的背景板与唤起态一样保持透明。\n在未超过限制时，进度条颜色取rgb(198,202,76)；超过60%即取当前警告颜色。\n在“协议整理”时，不展示进度条。"
+          }
+        },
+        {
+          "id": "c1mmmb",
+          "type": "scrollbar",
+          "x": 552,
+          "y": 32,
+          "w": 8,
+          "h": 184,
+          "z": 20,
+          "opacity": 1,
+          "props": {
+            "thumb": 0.35,
+            "horizontal": false
+          }
+        },
+        {
+          "id": "c106asb",
+          "type": "panelWait",
+          "x": 0,
+          "y": 264,
+          "w": 560,
+          "h": 64,
+          "z": 1,
+          "opacity": 1,
+          "props": {
+            "label": "等待态",
+            "showLabel": false,
+            "radius": 0
+          }
+        },
+        {
+          "id": "c117552",
+          "type": "select",
+          "x": 92,
+          "y": 280,
+          "w": 160,
+          "h": 32,
+          "z": 21,
+          "opacity": 1,
+          "props": {
+            "text": "协议传输",
+            "fontSize": 18
+          }
+        },
+        {
+          "id": "c127hg4",
+          "type": "text",
+          "x": 32,
+          "y": 284,
+          "w": 40,
+          "h": 24,
+          "z": 22,
+          "opacity": 1,
+          "props": {
+            "text": "执行：",
+            "fontSize": 16
+          }
+        },
+        {
+          "id": "c138um6",
+          "type": "button",
+          "x": 388,
+          "y": 276,
+          "w": 40,
+          "h": 40,
+          "z": 23,
+          "opacity": 1,
+          "props": {
+            "name": "check",
+            "shape": "circle",
+            "variant": "solid",
+            "toggled": false,
+            "ratio": 0.62
+          }
+        },
+        {
+          "id": "c14d011",
+          "type": "progress",
+          "x": 32,
+          "y": 320,
+          "w": 500,
+          "h": 8,
+          "z": 24,
+          "opacity": 1,
+          "props": {
+            "progress": 1,
+            "showTime": false,
+            "accent": "#ff4d4f",
+            "warnAt": 0.6
+          }
+        },
+        {
+          "id": "c16i76h",
+          "type": "badge",
+          "x": 271,
+          "y": 284,
+          "w": 100,
+          "h": 24,
+          "z": 25,
+          "opacity": 1,
+          "props": {
+            "text": "协议超载！",
+            "fontSize": 16,
+            "accent": "#ff4d4f"
+          }
+        }
+      ]
+    }
+  }
+}
