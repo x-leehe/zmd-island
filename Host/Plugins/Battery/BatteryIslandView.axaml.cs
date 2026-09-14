@@ -249,8 +249,8 @@ public partial class BatteryIslandView : UserControl
 
         var tasks = new List<Task>
         {
-            BuildWidthAnim(200d, 560d).RunAsync(Pill, ct),
-            BuildWidthAnim(200d, 560d).RunAsync(PillShadow, ct),
+            BuildWidthAnim(DesignTokens.ContractedWidth, DesignTokens.PillWidth).RunAsync(Pill, ct),
+            BuildWidthAnim(DesignTokens.ContractedWidth, DesignTokens.PillWidth).RunAsync(PillShadow, ct),
             BuildFade(1d, 0d).RunAsync(ContractedHost, ct),
             BuildFade(0d, 1d).RunAsync(NumHost, ct),
             BuildFade(0d, 1d).RunAsync(BoltIcon, ct),
@@ -296,8 +296,8 @@ public partial class BatteryIslandView : UserControl
         try
         {
             await Task.WhenAll(
-                BuildWidthAnim(560d, 200d).RunAsync(Pill, ct),
-                BuildWidthAnim(560d, 200d).RunAsync(PillShadow, ct),
+                BuildWidthAnim(DesignTokens.PillWidth, DesignTokens.ContractedWidth).RunAsync(Pill, ct),
+                BuildWidthAnim(DesignTokens.PillWidth, DesignTokens.ContractedWidth).RunAsync(PillShadow, ct),
                 BuildFade(1d, 0d).RunAsync(NumHost, ct),
                 BuildFade(1d, 0d).RunAsync(BoltIcon, ct),
                 BuildFade(0d, 1d).RunAsync(ContractedHost, ct));

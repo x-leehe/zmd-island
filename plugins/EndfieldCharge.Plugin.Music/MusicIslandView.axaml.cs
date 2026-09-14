@@ -415,7 +415,7 @@ public partial class MusicIslandView : UserControl
     /// </summary>
     private static Geometry SmoothSpectrum(IReadOnlyList<float>? data, int count)
     {
-        const double width = 560d;
+        const double width = DesignTokens.PillWidth;
         const double height = UnfoldHeight;
 
         var vals = new double[count];
