@@ -71,6 +71,8 @@ public partial class HudWindow : Window, IIslandHost
     //      轮询光标位置，进入岛（胶囊）范围时临时移除该样式使其可交互。 ----
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_TRANSPARENT = 0x00000020;
+    private const int WS_EX_NOACTIVATE = 0x08000000;   // 点击也不夺焦点（像 360 加速球）
+    private const int WS_EX_TOOLWINDOW = 0x00000080;   // 不进任务栏 / Alt+Tab
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -106,6 +108,22 @@ public partial class HudWindow : Window, IIslandHost
             ? exStyle & ~WS_EX_TRANSPARENT
             : exStyle | WS_EX_TRANSPARENT;
         SetWindowLong(handle, GWL_EXSTYLE, exStyle);
+    }
+
+    /// <summary>
+    /// 打上「永不激活 + 工具窗口」扩展样式：点击岛（含岛内按钮）不会把焦点从用户当前应用抢走，
+    /// 也不会出现在任务栏 / Alt+Tab（后者已由 ShowInTaskbar=false 的隐藏属主窗口保证，这里是双保险）。
+    /// 句柄创建后（<see cref="OnOpened"/>）调用一次即可；之后 <see cref="SetInteractive"/> 只切换
+    /// WS_EX_TRANSPARENT，不会覆盖这两个位。
+    /// </summary>
+    private void ApplyNonActivatingStyle()
+    {
+        var handle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        if (handle == IntPtr.Zero)
+            return;
+
+        var exStyle = GetWindowLong(handle, GWL_EXSTYLE);
+        SetWindowLong(handle, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
     }
 
     /// <summary>岛（胶囊）在屏幕上的物理像素包围盒，用于命中判定。
@@ -153,7 +171,8 @@ public partial class HudWindow : Window, IIslandHost
     {
         base.OnOpened(e);
 
-        SetInteractive(false); // 默认整窗穿透
+        ApplyNonActivatingStyle(); // 不夺焦点 / 不进 Alt+Tab（句柄创建后才能打扩展样式）
+        SetInteractive(false);     // 默认整窗穿透
 
         _passThroughTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
         _passThroughTimer.Tick += (_, _) =>
