@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using EndfieldCharge.Services;
@@ -17,8 +18,18 @@ public sealed record MusicSettings
     /// <summary>显示可视化器（频谱柱 / 包络）。</summary>
     public bool ShowVisualizer { get; init; } = true;
 
-    /// <summary>歌词来源：smtc / local / lrclib（歌词模块接入前只保存选择）。</summary>
-    public string LyricSource { get; init; } = "smtc";
+    /// <summary>
+    /// 歌词来源：<c>merge</c>（默认：三源并行择优） / <c>prefer-lrclib</c> / <c>prefer-netease</c> /
+    /// <c>prefer-local</c>（这三种 = 串行回退，排第一的优先） / <c>lrclib</c> / <c>netease</c> / <c>local</c>（仅这一源） /
+    /// <c>off</c>（关闭）。旧值 <c>auto</c> / <c>smtc</c> 由 <see cref="LyricsService"/> 迁移为 <c>merge</c>。
+    /// </summary>
+    public string LyricSource { get; init; } = "merge";
+
+    /// <summary>
+    /// 音乐来源白名单（应用 AUMID）。**默认空 ⇒ 不采集频谱、也不主动弹岛**。
+    /// 这是硬约束：白名单是采集的**前置条件**，不是事后过滤 —— 不在名单里的来源根本不会建立采集链路。
+    /// </summary>
+    public IReadOnlyList<string> SpectrumSources { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>音乐插件设置的读写：数据目录下的 settings.json；目录不可用时退化为内存态。</summary>

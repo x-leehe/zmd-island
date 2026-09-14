@@ -249,22 +249,33 @@ public sealed class SmtcMediaSource : IDisposable
             _rate = ReadRate(info);
             _stampUtc = DateTime.UtcNow;
 
-            SetFrame(new MusicFrame
+            // 先出文字：封面解码可能要几十到几百毫秒，**不能让它挡住标题 / 进度 / 播放态**
+            var frame = new MusicFrame
             {
                 Title = props.Title,
                 Artist = props.Artist,
-                LyricCurrent = null, // 歌词模块后续接入
+                Album = props.AlbumTitle,
+                Duration = _duration,
+                SourceAppId = ReadSourceAppId(session),
+                LyricCurrent = null, // 歌词由插件的 LyricsService 覆写（按播放位置取行）
                 Progress = _duration > TimeSpan.Zero
                     ? Math.Clamp(_position.TotalSeconds / _duration.TotalSeconds, 0d, 1d)
                     : 0d,
                 IsPlaying = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing,
-                Cover = await LoadCoverAsync(props),
-                Spectrum = null, // 频谱模块后续接入
-            });
+                Cover = null,        // 见下：拿到后再补一帧
+            };
+            SetFrame(frame);
+
+            // 封面备好后再补一帧（同曲缓存命中时几乎立刻返回）
+            var cover = await LoadCoverAsync(props);
+
+            // 期间可能已经换曲 / 重扫：只在这帧仍是当前帧时补图，免得把旧封面盖到新曲上
+            if (ReferenceEquals(_frame, frame))
+                SetFrame(frame with { Cover = cover });
         }
         catch (Exception ex)
         {
-            Logger.Warn($"SMTC 读取失败：{ex.Message}");
+            Logger.Warn($"SMTC 读取失败（{ex.GetType().Name}）：{ex.Message}");
             SetFrame(MusicFrame.Empty);
         }
     }
@@ -321,6 +332,23 @@ public sealed class SmtcMediaSource : IDisposable
         catch
         {
             return 1d;
+        }
+    }
+
+    /// <summary>
+    /// 来源应用的 AUMID（频谱白名单 / 弹岛判定用）。与 <see cref="ReadRate"/> 同理：
+    /// 个别 SDK 投影下该属性可能不可用，取不到就返回 null（视为"来源未知"），绝不让建帧失败。
+    /// </summary>
+    private static string? ReadSourceAppId(GlobalSystemMediaTransportControlsSession session)
+    {
+        try
+        {
+            var value = session.SourceAppUserModelId;
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+        catch
+        {
+            return null;
         }
     }
 

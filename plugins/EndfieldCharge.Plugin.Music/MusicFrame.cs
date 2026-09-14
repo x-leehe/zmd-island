@@ -22,15 +22,21 @@ public sealed record MusicFrame
 
     public string? Artist { get; init; }
 
+    /// <summary>专辑名（参与 LRCLIB 的精确匹配）。</summary>
+    public string? Album { get; init; }
+
+    /// <summary>曲目总时长：歌词按绝对时间取行，LRCLIB 也用它区分同名曲。</summary>
+    public TimeSpan Duration { get; init; }
+
+    /// <summary>来源应用的 AUMID（频谱白名单按它判定；为空表示未知，一律视为不在白名单）。</summary>
+    public string? SourceAppId { get; init; }
+
     public string? LyricCurrent { get; init; }
 
     /// <summary>播放进度 0..1。</summary>
     public double Progress { get; init; }
 
     public bool IsPlaying { get; init; }
-
-    /// <summary>频谱柱值 0..1（平滑包络；骨架为多正弦叠加）。</summary>
-    public IReadOnlyList<float>? Spectrum { get; init; }
 
     /// <summary>专辑封面（SMTC 缩略图；无则为 null）。</summary>
     public Bitmap? Cover { get; init; }
@@ -42,7 +48,6 @@ public sealed record MusicFrame
         LyricCurrent = "正在演唱的这一句",
         Progress = 0.45,
         IsPlaying = false,
-        Spectrum = BuildDemoSpectrum(40),
     };
 
     /// <summary>空态：当前没有媒体会话（不显示任何假数据，封面位露出音符占位字形）。</summary>
@@ -64,20 +69,4 @@ public sealed record MusicFrame
         Progress = 0d,
         IsPlaying = false,
     };
-
-    /// <summary>确定性平滑包络（多正弦叠加），与画布稿的「平滑过渡」观感一致。</summary>
-    private static float[] BuildDemoSpectrum(int n)
-    {
-        var outv = new float[n];
-        for (int i = 0; i < n; i++)
-        {
-            double t = n == 1 ? 0.5d : (double)i / (n - 1);
-            double v = 0.44
-                + 0.30 * Math.Sin(t * Math.PI * 2 * 1.15 + 0.6)
-                + 0.14 * Math.Sin(t * Math.PI * 2 * 2.70 + 2.1)
-                + 0.08 * Math.Sin(t * Math.PI * 2 * 5.30 + 4.4);
-            outv[i] = (float)Math.Clamp(v, 0.08d, 1d);
-        }
-        return outv;
-    }
 }
