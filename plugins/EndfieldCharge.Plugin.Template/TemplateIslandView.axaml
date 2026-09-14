@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="EndfieldCharge.Host.Plugins.Template.TemplateIslandView"
+             Width="1200" Height="160">
+
+  <!-- 模板插件的岛皮肤：三态「空壳」——视觉树里只有胶囊背景，没有任何文案 / 图标 / 仪表。
+       三态尺寸：等待 560×60 · 展开（宿主 Response）560×160 · 收缩 200×60。
+       第三方插件从这份视觉树起步：把自己的内容放进 Pill 内部即可（Pill 自带圆角裁剪）。 -->
+  <Grid x:Name="Root" Width="1200" Height="160" VerticalAlignment="Center">
+    <!-- 全局缩放 0.8：整个岛缩小 20%，由 ApplyScale 按设置改写 -->
+    <Grid x:Name="GlobalScale"
+          HorizontalAlignment="Center" VerticalAlignment="Center"
+          RenderTransformOrigin="50%,50%">
+      <Grid.RenderTransform>
+        <ScaleTransform ScaleX="0.8" ScaleY="0.8"/>
+      </Grid.RenderTransform>
+
+      <!-- 阴影与胶囊同几何同动画；Pill 带 ClipToBounds 会把 BoxShadow 裁掉，
+           所以阴影独立成一层（绘制在 Pill 之前，只露出外圈柔影）。 -->
+      <Border x:Name="PillShadow"
+              Width="560" Height="60"
+              CornerRadius="30"
+              BoxShadow="0 1 6 #40000000"
+              IsHitTestVisible="False"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              Opacity="0"/>
+
+      <!-- 空胶囊：模板不承载任何内容（无内容 = 可见的只有这一块圆角背景） -->
+      <Border x:Name="Pill"
+              Width="560" Height="60"
+              CornerRadius="30"
+              Background="#FF312F30"
+              ClipToBounds="True"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              Opacity="0"/>
+    </Grid>
+  </Grid>
+</UserControl>

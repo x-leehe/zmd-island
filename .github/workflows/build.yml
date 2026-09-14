@@ -68,7 +68,7 @@ jobs:
           "EndfieldCharge.csproj",
           "src/EndfieldCharge.Contracts/EndfieldCharge.Contracts.csproj",
           "src/EndfieldCharge.Contracts.Avalonia/EndfieldCharge.Contracts.Avalonia.csproj",
-          "plugins/EndfieldCharge.Plugin.Music/EndfieldCharge.Plugin.Music.csproj",
+          "plugins/EndfieldCharge.Plugin.Template/EndfieldCharge.Plugin.Template.csproj",
           "tests/EndfieldCharge.Tests/EndfieldCharge.Tests.csproj"
         )
         foreach ($p in $projects) {
@@ -101,8 +101,8 @@ jobs:
           exit 1
         }
         # 外部插件必须随发版一起打进去（由 EndfieldCharge.csproj 的 CopyPluginsToPublish 产出）
-        if (!(Test-Path "publish\plugins\EndfieldCharge.Plugin.Music.dll")) {
-          Write-Error "publish\plugins\EndfieldCharge.Plugin.Music.dll not found —— 发版未带上插件"
+        if (!(Test-Path "publish\plugins\EndfieldCharge.Plugin.Template.dll")) {
+          Write-Error "publish\plugins\EndfieldCharge.Plugin.Template.dll not found —— 发版未带上插件"
           exit 1
         }
         # 必须包含 SkiaSharp native dll（libSkiaSharp / libHarfBuzzSharp / av_libglesv2），

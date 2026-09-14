@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 外部插件 DLL：产出 EndfieldCharge.Plugin.Template.dll，随宿主丢进 plugins/ 即被加载。
+         只引用两个契约程序集 + Avalonia（框架依赖），不引用主程序。
+         本工程是第三方插件的模板：复制整个目录 → 改程序集名 / 命名空间 → 实现 IPlugin 即可。 -->
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>EndfieldCharge.Plugin.Template</AssemblyName>
+    <RootNamespace>EndfieldCharge.Host.Plugins.Template</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- TemplateSettingsView 由插件在代码中带参构造，XAML 运行时加载器警告（AVLN3001）为误报 -->
+    <NoWarn>$(NoWarn);AVLN3001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Avalonia 是框架依赖（宿主已带）：插件必须自己引它以获得 XAML 编译目标；
+         契约程序集走 <Private>false</Private>，运行时由宿主的默认 ALC 提供。 -->
+    <PackageReference Include="Avalonia" Version="11.2.1" />
+    <ProjectReference Include="..\..\src\EndfieldCharge.Contracts\EndfieldCharge.Contracts.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\..\src\EndfieldCharge.Contracts.Avalonia\EndfieldCharge.Contracts.Avalonia.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>

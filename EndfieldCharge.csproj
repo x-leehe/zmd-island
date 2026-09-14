@@ -57,11 +57,15 @@
        新增插件：把它的 csproj 以 ReferenceOutputAssembly=false 加进本 ItemGroup，
        并在下面的 <PluginDll> 列表里补一条对应的产物路径 —— 两个列表一一对应。 -->
   <ItemGroup>
+    <ProjectReference Include="plugins\EndfieldCharge.Plugin.Template\EndfieldCharge.Plugin.Template.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
 
   <!-- 插件产物路径做成共享 item：Build（调试运行）与 Publish（便携版/安装包）都要用。
        @(PluginDll) 为空时两个复制目标自动成为空操作。 -->
   <ItemGroup>
+    <PluginDll Include="$(MSBuildThisFileDirectory)plugins\EndfieldCharge.Plugin.Template\bin\$(Configuration)\net8.0-windows10.0.17763.0\EndfieldCharge.Plugin.Template.dll" />
   </ItemGroup>
 
   <Target Name="CopyPluginsToOutput" AfterTargets="Build">

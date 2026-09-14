@@ -110,6 +110,24 @@ public static class Localization
     public static string WhitelistAdd => IsChinese ? "添加" : "Add";
     public static string WhitelistKnown => IsChinese ? "见过的来源" : "Seen sources";
     public static string WhitelistKnownEmpty => IsChinese ? "（暂无，播放一次即出现）" : "(none yet)";
+
+    // ---- 模板插件设置（plugins/EndfieldCharge.Plugin.Template；同样是插件自绘面板） ----
+    public static string PluginTemplateName => IsChinese ? "模板" : "Template";
+    public static string TemplateSectionTitle => IsChinese ? "模板插件示例" : "Template Plugin Example";
+    public static string TemplateLabelFlag => IsChinese ? "示例开关" : "Example Toggle";
+    public static string TemplateDescFlag => IsChinese ? "演示 bool 设置：改动即保存" : "Bool setting: saved on change";
+    public static string TemplateLabelNumber => IsChinese ? "示例数值" : "Example Number";
+    public static string TemplateDescNumber =>
+        IsChinese ? "演示数值设置：滑块与步进器双向同步" : "Numeric setting: slider and stepper stay in sync";
+    public static string TemplateLabelChoice => IsChinese ? "示例选项" : "Example Choice";
+    public static string TemplateDescChoice => IsChinese ? "演示枚举设置" : "Choice setting";
+    public static string TemplateLabelText => IsChinese ? "示例文本" : "Example Text";
+    public static string TemplateDescText => IsChinese ? "演示文本设置" : "Text setting";
+    public static string TemplateChoiceAlpha => IsChinese ? "选项 A" : "Choice A";
+    public static string TemplateChoiceBeta => IsChinese ? "选项 B" : "Choice B";
+    public static string TemplateChoiceGamma => IsChinese ? "选项 C" : "Choice C";
+    public static string TemplateTextPlaceholder => IsChinese ? "输入任意文本" : "Type anything";
+
     public static string NoPluginSettings => IsChinese ? "暂无插件提供设置" : "No plugin settings available";
     public static string LabelWaitingTimeout => IsChinese ? "等待态超时（秒）" : "Waiting Timeout (s)";
     public static string LabelContractedTimeout => IsChinese ? "收缩态超时（秒）" : "Contracted Timeout (s)";

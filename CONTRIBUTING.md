@@ -1,8 +1,8 @@
 # Contributing to EndfieldCharge
 
 Thanks for taking the time to contribute. EndfieldCharge is a plugin-driven, four-state
-"Dynamic Island" style HUD for Windows: it reacts to power events and, through plugins,
-to media playback.
+"Dynamic Island" style HUD for Windows: it reacts to power events and hosts plugins that
+extend the island with their own skins, content and settings.
 
 Please read this guide before opening an issue or a pull request. It covers how to build
 and verify the project, how to write code and commits, and how to add a plugin.
@@ -103,7 +103,7 @@ or English — whatever gets the point across.
   | `chore`    | maintenance that fits none of the above                        |
   | `revert`   | reverting a previous commit                                    |
 
-- **scope** — optional, but when present it must come from this list: `hud`, `music`,
+- **scope** — optional, but when present it must come from this list: `hud`, `template`,
   `battery`, `contracts`, `plugins`, `menu`, `power`, `settings`, `build`, `ci`, `docs`.
   Omit it for changes that span the whole repo; if your change really needs a new scope, say
   so in the pull request.
@@ -135,12 +135,12 @@ reverted commit>` and put `This reverts commit <SHA>` in the body.
 ### Examples
 
 ```
-feat(music): expand the island when playback starts
+feat(template): grow the pill during the response animation
 
-Binding to SMTC session events instead of polling means playback transitions
-are observed directly, so the island can be revealed without waiting for the
-next tick. The first frame after connecting only establishes a baseline, so
-starting the app while music is already playing does not pop the island.
+The template skin used to jump straight to the tall state, which made the
+response animation hard to follow. Animating the pill height through the
+shared AnimationPrimitives keeps the motion consistent with the battery
+skin, and the settled final frame is written back as the new base value.
 
 Closes #42
 ```
@@ -251,7 +251,7 @@ Plugins are the point of this architecture: the host knows nothing but the contr
   (`PluginLoader.SharedAssemblies`). Each plugin gets its own collectible-free ALC, resolved
   via `AssemblyDependencyResolver`. If you add a contract assembly, add it to that list too —
   otherwise `plugin is IPlugin` silently fails because the type identity is split.
-- Implement `IPlugin`: `Id` (stable, lowercase, e.g. `music`), `DisplayName`, `CanUnload`,
+- Implement `IPlugin`: `Id` (stable, lowercase, e.g. `template`), `DisplayName`, `CanUnload`,
   `Initialize(IPluginContext)` (read `DataDirectory` for anything you persist) and
   `Shutdown()` (stop timers, unsubscribe events, dispose what you created).
 - Optional capabilities — declare them, the host picks them up without changes:
@@ -275,10 +275,9 @@ Plugins are the point of this architecture: the host knows nothing but the contr
   `ReferenceOutputAssembly=false` and extend `CopyPluginsToOutput` / `CopyPluginsToPublish`
   so the DLL ends up in `plugins/` for both the debug output and `publish/`. A plugin that
   isn't copied there will not ship and will not load.
-- Prefer **event-driven** integration over polling (see `SmtcMediaSource`: SMTC session
-  events plus local progress interpolation, bounded connect retries, and a visible degraded
-  state instead of fake data). If polling is unavoidable, make the interval a documented
-  constant, keep the work off the UI thread and stop when the island is not visible.
+- Prefer **event-driven** integration over polling in the style of the in-repo plugins. If
+  polling is unavoidable, make the interval a documented constant, keep the work off the UI
+  thread and stop when the island is not visible.
 
 ## AI-assisted contributions
 
@@ -293,7 +292,7 @@ wrote it" is not a description of behavior.
 EndfieldCharge.csproj                  host (the only executable project)
 src/EndfieldCharge.Contracts/          plugin contracts, BCL-only
 src/EndfieldCharge.Contracts.Avalonia/ skin contracts + design tokens + geometry
-plugins/EndfieldCharge.Plugin.Music/   in-repo plugin example (SMTC media island)
+plugins/EndfieldCharge.Plugin.Template/ in-repo plugin example (empty three-state island)
 tests/EndfieldCharge.Tests/            xUnit tests for pure logic (state machine, geometry)
 Host/                                  island chrome, plugin registry/loader, menu composer
 Services/                              power, battery, auto-start, update check
@@ -312,8 +311,7 @@ Please include:
 - Windows edition and build number (`winver`).
 - Exact steps to reproduce, and what you expected instead.
 - The relevant lines from `%TEMP%\EndfieldCharge\log-YYYYMMDD.txt` (with `ERROR` / `WARN`),
-  and whether you ran the app elevated — SMTC-based features (the music plugin) behave
-  differently when the process is elevated.
+  and whether you ran the app elevated.
 - For HUD/animation issues: your display scaling, HUD position setting, and whether the
   island was visible, contracted or hidden.
 

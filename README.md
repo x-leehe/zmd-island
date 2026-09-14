@@ -3,7 +3,7 @@
 插上 / 拔掉充电器时，从屏幕顶部弹出一块"灵动岛"式 HUD，显示当前电量（mWh 与百分比）。
 项目已从单体应用重构为**插件驱动**架构，HUD 本身是一个**四态灵动岛**，视觉与动画风格复刻《终末地》工业 / 超充模式 HUD。
 
-- **插件驱动**：`src/EndfieldCharge.Contracts`（BCL-only）与 `src/EndfieldCharge.Contracts.Avalonia` 定义插件与皮肤契约，`Host/` 承载岛、插件注册表、外部插件加载器（每插件独立 `AssemblyLoadContext`）与菜单合成；电池充电检测降为一个不可卸载的元插件，其它插件只提供数据即可借用它的样式在岛上展示内容。音乐岛是**项目内的外部插件子项目**（`plugins/`），宿主只按契约认识它。
+- **插件驱动**：`src/EndfieldCharge.Contracts`（BCL-only）与 `src/EndfieldCharge.Contracts.Avalonia` 定义插件与皮肤契约，`Host/` 承载岛、插件注册表、外部插件加载器（每插件独立 `AssemblyLoadContext`）与菜单合成；电池充电检测降为一个不可卸载的元插件，其它插件只提供数据即可借用它的样式在岛上展示内容。模板插件（`plugins/EndfieldCharge.Plugin.Template`）是**项目内的外部插件子项目**示例，宿主只按契约认识它。
 - **四态灵动岛**：响应态 → 等待态 → 收缩态 → 隐藏态；鼠标移到屏幕顶缘细条停留即可再次展开。
 
 ## 下载安装
@@ -22,8 +22,8 @@
 | 电量显示 | 剩余 / 满充容量（mWh，整数）与百分比，读取 `CallNtPowerInformation`，WMI 兜底 |
 | 电源监听 | `RegisterPowerSettingNotification` 订阅 GUID_ACDC_POWER_SOURCE，2s 轮询兜底，400ms 双向去抖（过滤 Windows 满电瞬时抖动） |
 | 插件驱动架构 | `src/EndfieldCharge.Contracts` 定义插件契约（`IPlugin` / `IPluginContext` / `IIslandContentProvider` / `IContextMenuContributor`），`src/EndfieldCharge.Contracts.Avalonia` 定义皮肤契约（`IIslandSkin` / `IIslandHost` / `IIslandExpandToggle`）；`Host/Plugins/PluginLoader` 从 exe 旁 `plugins/*.dll` 加载外部插件（每插件独立 ALC，契约共享默认上下文） |
-| 音乐岛（外部插件） | `plugins/EndfieldCharge.Plugin.Music`：SMTC **事件驱动**（`SessionsChanged` / `CurrentSessionChanged` + 会话的媒体属性 / 播放态 / 时间线事件），不轮询；无会话显示空态、连接失败降级为「未连接 SMTC」并慢速自愈；歌词走**多源并行择优**（LRCLIB + 网易云同时探测，汇总取最相似的一条，并丢弃「纯音乐，请欣赏」这类占位），长句自动跑马灯；音乐开始播放自动以**展开态**弹出（左键点岛即隐藏；**受「音乐来源白名单」硬约束**——只有名单内的来源才会被显示 / 被岛内按钮控制 / 触发自动弹岛，名单为空时岛显示空态且按钮无效），岛内按钮可播放/暂停与切歌 |
-| 插件设置 | 设置窗口「插件」页由插件自绘（`IPluginSettingsPage` 契约）。音乐插件提供：展开态超时（最低 3s）、无歌词时显示歌名、显示可视化器、可视化强度（0.5–3.0×，以 0.5 为轴做对比度扩展，越大起伏越明显）、采样柱数（24–96，展开态真实频谱的频段数 = 绘制柱数）、歌词来源（**并行择优**：三源同时检索取最匹配；偏好 LRCLIB / 偏好网易云 / 偏好本地：串行回退；仅 LRCLIB / 仅网易云 / 仅本地；关闭歌词）、音乐来源白名单（按 AUMID，可手动添加或点选「见过的来源」，列表每秒刷新；**硬门禁**：只有名单内的来源才会被显示、才会被岛内按钮控制、才会采集频谱并触发自动弹岛——名单外的来源（含浏览器）一律不显示、不控制，**默认空 ⇒ 音乐岛显示空态、按钮无效**）；设置持久化在 `%APPDATA%\EndfieldCharge\plugins\<id>\settings.json`，改动即生效 |
+| 模板插件（外部插件） | `plugins/EndfieldCharge.Plugin.Template`：第三方插件开发模板 —— 三态**空壳**皮肤（响应 560×160 → 等待 560×60 → 收缩 200×60，只画胶囊背景，不含任何文案 / 图标 / 仪表），并演示 `IIslandSkin` 的尺寸、动画与全局缩放接线 |
+| 插件设置 | 设置窗口「插件」页由插件自绘（`IPluginSettingsPage` 契约）。模板插件演示四类设置项：开关（bool）、数值（滑块与步进器双向同步）、下拉（枚举）、文本框（字符串），改动即保存到插件数据目录 `%APPDATA%\EndfieldCharge\plugins\<id>\settings.json`，宿主不参与插件设置的语义 |
 | 滚轮切换岛 | 按「翻页」语义：每滚一档 = 翻一页 = 切一个岛（上滚上一页 / 下滚下一页），不做手势判定；边界行为可在设置里配置（循环 / 到边界即停 / 禁用）；皮肤把 `ParticipatesInWheelSwitch` 覆写为 `false` 即被排除出轮转 |
 | 电池元插件 | 电池充电检测实现为不可卸载的元插件（`CanUnload=false`），同时提供岛样式（`IIslandSkin`）与电池数据（`IIslandContentProvider`）；其它插件只提供数据即可借用该样式在岛上展示内容，无需接触 Avalonia |
 | 四态灵动岛 | 响应态（完整「超充模式」入场动画，固定时长）→ 等待态（电量胶囊）→ 收缩态（宽度约 200，仅电池环 + 百分比）→ 隐藏态；鼠标移到屏幕顶缘细条停留约 300ms 展开回等待态 |
@@ -32,10 +32,10 @@
 | 设置窗口 | 通用 / 动画 / 插件 / 通知 / 关于五个页签；全局缩放（0.4–1.2）、窗口置顶、滚轮切换岛行为（循环 / 到边界即停 / 禁用）、等待态超时、收缩态超时、HUD 位置（顶部居中/靠右/靠左）、显示器选择、语言、开机自启，保存即生效并持久化 |
 | 托盘菜单 | 右键使用 Win32 原生菜单（显示 / 设置 / 置顶 / 插件▸ / 关于 / 退出） |
 | 岛右键菜单 | 自绘菜单（illogical-impulse 风格：`#201F20`、圆角 12、1px 描边、阴影），窗口 `WS_EX_NOACTIVATE` 永不激活，配合 `WH_MOUSE_LL` 全局鼠标钩子检测外部点击关闭；菜单项 = 插件注入项 + 宿主固定项（窗口置顶 / 免打扰▸ / 插件▸ / 设置 / 退出）；**任意带子项的条目**都支持悬停展开子菜单 |
-| 插件菜单注入 | 插件实现 `IContextMenuContributor` 即可向右键菜单注入条目，按 Target → Section → Priority 聚合；音乐插件即以此提供「上一曲 / 下一曲 / 暂停·播放」 |
+| 插件菜单注入 | 插件实现 `IContextMenuContributor` 即可向右键菜单注入条目，按 Target → Section → Priority 聚合 |
 | 点击穿透 | 窗口整窗 `WS_EX_TRANSPARENT` + 30ms 光标轮询；光标在岛区域时临时取消穿透使其可交互，其余区域点击穿透到桌面 / 其它窗口 |
 | 永不夺焦 / 不进 Alt+Tab | 岛窗口带 `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`：点击岛（含岛内按钮）**不会把焦点从你当前的应用抢走**（像 360 加速球），也不出现在任务栏 / Alt+Tab。配合 `ShowActivated=false`，显示时也不激活；`ShowInTaskbar=false` 让 Avalonia 把窗口挂在隐藏的属主窗口下，从而天然排除出 Alt+Tab。右键菜单窗口同样 `WS_EX_NOACTIVATE` |
-| 状态生命周期超时 | **每个状态都有自己的超时，与唤醒方式无关**（托盘 / 插拔电 / 滚轮翻页 / 内容主动展开都一样）：展开态 → 等待态（**最低 3s**，时长由皮肤自报，音乐插件把它做成自己的设置）、等待态 → 收缩态、收缩态 → 隐藏态（后两者在设置→动画页配置）；鼠标悬停在岛区域内会重置计时 |
+| 状态生命周期超时 | **每个状态都有自己的超时，与唤醒方式无关**（托盘 / 插拔电 / 滚轮翻页 / 内容主动展开都一样）：展开态 → 等待态（**最低 3s**，时长由皮肤自报）、等待态 → 收缩态、收缩态 → 隐藏态（后两者在设置→动画页配置）；鼠标悬停在岛区域内会重置计时 |
 | 窗口置顶 | 设置窗口与岛右键菜单均可切换窗口置顶 |
 | 动画微调 | 设置窗口「动画」页实时预览并微调时长 / 回弹 / 波纹参数，保存即生效并持久化 |
 | 节能模式提示 | 开 / 关节能（省电）模式时弹出对应 HUD。24H2+（build 26100+）订阅 GUID_ENERGY_SAVER_STATUS 通知、轮询注册表 EnergySaverState；旧系统用 GUID_POWER_SAVING_STATUS + SystemStatusFlag。设置「通知」页可开关 |
@@ -69,7 +69,7 @@ iscc installer\EndfieldCharge.iss
 > 便携分发请打包整个 `publish/` 目录，不要只拷 exe。
 >
 > 外部插件由 `CopyPluginsToPublish` 产出到 `publish/plugins/`，**必须与 exe 一同分发**
-> （宿主从 exe 旁的 `plugins/` 目录加载）；只拷 exe 会没有音乐岛。
+> （宿主从 exe 旁的 `plugins/` 目录加载）；只拷 exe 会没有外部插件。
 >
 > 纯逻辑单元测试与格式基线（CI 都会跑）：`dotnet test tests\EndfieldCharge.Tests`、
 > `dotnet format EndfieldCharge.csproj --verify-no-changes`。
@@ -77,7 +77,7 @@ iscc installer\EndfieldCharge.iss
 ### CI / 发布（GitHub Actions）
 
 **CI**：推送到 `main`（以及 PR）会自动构建安装包与便携版 zip，Actions 页面可下载 artifact。
-包内**已包含外部插件**（`plugins/EndfieldCharge.Plugin.Music.dll`，由
+包内**已包含外部插件**（`plugins/EndfieldCharge.Plugin.Template.dll`，由
 `EndfieldCharge.csproj` 的 `CopyPluginsToPublish` 放进 `publish/plugins/`）。
 
 **Release 不随标签自动发布**，必须手动触发：
@@ -101,7 +101,7 @@ iscc installer\EndfieldCharge.iss
 | `--debug-ring` | 静态呈现电量态 1.5s |
 | `--show-fps` | 右下角显示 FPS 计数器（排查动画性能） |
 | `--power-log` | 输出电源事件日志到 `%TEMP%\power-log.txt` |
-| `--demo-music` | 直接进入音乐岛等待态（外部插件 `plugins/EndfieldCharge.Plugin.Music`） |
+| `--demo-music` | 兼容参数：仅让岛停在等待态（音乐插件已不在本分支） |
 
 > 注意：这几个参数现在会停在等待态（不再自动消失）；参数互斥，按 `--demo` → `--preview-unplug` → `--preview` → `--demo-music` 的优先级生效。
 
@@ -130,11 +130,11 @@ EndfieldCharge/
 │     ├─ DesignTokens.cs  AnimationPrimitives.cs  RingGeometry.cs
 │     └─ Styles/Geometries.axaml         # Material 图标几何资源
 ├─ plugins/
-│  └─ EndfieldCharge.Plugin.Music/       # 外部插件（项目内子项目，不单独建仓库）
-│     ├─ MusicPlugin.cs                  # IPlugin + IIslandSkin + IIslandExpandToggle + IContextMenuContributor
-│     ├─ MusicIslandView.axaml(.cs)      # 音乐岛三态视觉树与动画
-│     ├─ SmtcMediaSource.cs              # SMTC 事件驱动数据源（连接重试 / 降级 / 本地进度插值）
-│     └─ MusicFrame.cs                   # 一帧内容（含空态 / 降级态）
+│  └─ EndfieldCharge.Plugin.Template/    # 外部插件模板（项目内子项目，不单独建仓库）
+│     ├─ TemplatePlugin.cs               # IPlugin + IIslandSkin + IPluginSettingsPage
+│     ├─ TemplateIslandView.axaml(.cs)   # 三态空壳视觉树（只有胶囊背景）与动画
+│     ├─ TemplateSettings.cs             # 设置模型 + JSON 持久化（插件数据目录）
+│     └─ TemplateSettingsView.axaml(.cs) # 设置页示例（开关 / 数值 / 选项 / 文本）
 ├─ tests/EndfieldCharge.Tests/           # xUnit：纯逻辑测试（IslandStateMachine / RingGeometry 等）
 ├─ Host/
 │  ├─ Island/

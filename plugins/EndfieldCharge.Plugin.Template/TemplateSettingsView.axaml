@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="EndfieldCharge.Host.Plugins.Template.TemplateSettingsView"
+             FontFamily="HarmonyOS Sans SC, HarmonyOS Sans, Inter, Microsoft YaHei UI, sans-serif">
+  <!-- 模板插件设置面板：宿主「插件」页承载。排版与宿主设置页共用同一套全局 class
+       （section-title / section-bar / row-label / row-desc / row-value），改动即保存并立即生效。 -->
+  <StackPanel Spacing="24">
+
+    <StackPanel>
+      <TextBlock x:Name="SectionText" Classes="section-title"/>
+      <Border Classes="section-bar"/>
+      <StackPanel Spacing="14">
+
+        <!-- ① 开关：bool -->
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel>
+            <TextBlock x:Name="LabelFlag" Classes="row-label"/>
+            <TextBlock x:Name="DescFlag" Classes="row-desc" Margin="0,2,0,0"/>
+          </StackPanel>
+          <ToggleSwitch x:Name="FlagSwitch" Grid.Column="1" Margin="16,0,0,0"
+                        VerticalAlignment="Center" OnContent="" OffContent=""/>
+        </Grid>
+
+        <!-- ② 数值：Slider 与 NumericUpDown 双向同步 -->
+        <StackPanel>
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel>
+              <TextBlock x:Name="LabelNumber" Classes="row-label"/>
+              <TextBlock x:Name="DescNumber" Classes="row-desc" Margin="0,2,0,0"/>
+            </StackPanel>
+            <NumericUpDown x:Name="NumberStepper" Grid.Column="1" Width="140" Height="36"
+                           Minimum="0.5" Maximum="3" Increment="0.1" ShowButtonSpinner="True"
+                           VerticalAlignment="Center" Margin="16,0,0,0"/>
+          </Grid>
+          <Slider x:Name="NumberSlider" Margin="0,12,0,0" Minimum="0.5" Maximum="3"
+                  TickFrequency="0.1" Value="1.5" IsSnapToTickEnabled="True"/>
+        </StackPanel>
+
+        <!-- ③ 下拉：choice -->
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel>
+            <TextBlock x:Name="LabelChoice" Classes="row-label"/>
+            <TextBlock x:Name="DescChoice" Classes="row-desc" Margin="0,2,0,0"/>
+          </StackPanel>
+          <ComboBox x:Name="ChoiceCombo" Grid.Column="1" Width="240" Height="36"
+                    Margin="16,0,0,0" VerticalAlignment="Center"/>
+        </Grid>
+
+        <!-- ④ 文本框：string -->
+        <StackPanel>
+          <TextBlock x:Name="LabelText" Classes="row-label"/>
+          <TextBlock x:Name="DescText" Classes="row-desc" Margin="0,2,0,0"/>
+          <TextBox x:Name="TextValue" Margin="0,8,0,0" FontSize="14" Height="36"/>
+        </StackPanel>
+      </StackPanel>
+    </StackPanel>
+
+    <TextBlock x:Name="SavedText" Classes="row-desc" Foreground="#C6CA4C" Opacity="0"/>
+  </StackPanel>
+</UserControl>
