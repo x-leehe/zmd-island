@@ -98,6 +98,9 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
         // 事件驱动：SMTC 一有变化就绑定（含"无会话"空态与"未连接"降级态）
         _media.FrameChanged += OnFrameChanged;
 
+        // 枚举到的来源（含未授权）→ 「见过的来源」候选；授权与否只由白名单决定
+        _media.SourcesObserved += OnSourcesObserved;
+
         // 歌词：来源由设置决定；换曲在 OnFrameChanged 里发起，拿到结果后回 UI 线程刷新那一行
         _lyrics = new LyricsService(CreateLyricsProvider);
         _lyrics.Changed += OnLyricsChanged;
@@ -141,6 +144,18 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
             _progressTimer.Start();
         else
             _progressTimer.Stop();
+    }
+
+    /// <summary>枚举到的来源（含未授权）→ 记入「见过的来源」候选；只用于设置页展示，不代表已允许。</summary>
+    private void OnSourcesObserved(IReadOnlyList<string> ids)
+    {
+        foreach (var id in ids)
+        {
+            if (_knownSources.Count >= KnownSourcesCap)
+                return;
+
+            _knownSources.Add(id);
+        }
     }
 
     /// <summary>
@@ -385,6 +400,7 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
         }
 
         _lyrics.Use(_settings.LyricSource);
+        _media.Whitelist = _settings.SpectrumSources;       // 硬门禁：不在名单里的会话不显示、不控制
         ApplyAnalyzerBands(_settings.VisualizerBars);
         _view.ApplyPreferences(_settings.ShowTitleWhenNoLyric, _settings.ShowVisualizer, _settings.VisualizerIntensity, _settings.VisualizerBars);
         Logger.Info($"Music: 设置已加载（展开态超时 {ExpandedTimeoutSeconds:F1}s（下限 3s） / " +
@@ -510,6 +526,7 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
         _settings = settings;
         MusicSettingsStore.Save(_dataDirectory, settings);
         _lyrics.Use(settings.LyricSource);                  // 换来源 → 丢掉旧歌词，等下一次换曲重取
+        _media.Whitelist = settings.SpectrumSources;         // 白名单变更 → 立刻重挑会话（未授权的不显示、不控制）
         ApplyAnalyzerBands(settings.VisualizerBars);
         _view.ApplyPreferences(settings.ShowTitleWhenNoLyric, settings.ShowVisualizer, settings.VisualizerIntensity, settings.VisualizerBars);
         RefreshLyric();                                     // ApplyPreferences 会重绑帧，歌词要再写一次

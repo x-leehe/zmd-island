@@ -52,6 +52,8 @@ public sealed class SmtcMediaSource : IDisposable
     private bool _disposed;
 
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
+    private GlobalSystemMediaTransportControlsSession? _session;
+    private IReadOnlyList<string>? _whitelist;
 
     private MusicFrame _frame = MusicFrame.Empty;
 
@@ -98,6 +100,26 @@ public sealed class SmtcMediaSource : IDisposable
     /// <summary>内容变化：连接状态 / 曲目 / 封面 / 播放态 / seek，以及空态与不可用降级态。</summary>
     public event Action<MusicFrame>? FrameChanged;
 
+    /// <summary>
+    /// 枚举到的所有来源 AUMID（含**未被允许**的）—— 仅供设置页列出「见过的来源」候选，
+    /// <strong>不代表已允许</strong>；授权与否只由 <see cref="Whitelist"/> 决定。
+    /// </summary>
+    public event Action<IReadOnlyList<string>>? SourcesObserved;
+
+    /// <summary>
+    /// 允许的会话来源白名单（AUMID），**硬门禁**：不在名单里的会话既不会被显示，也不会被控制；
+    /// 空名单 / 取不到 AUMID 一律不允许。赋值（含清空）会立即重新挑选会话并刷新显示。
+    /// </summary>
+    public IReadOnlyList<string>? Whitelist
+    {
+        get => _whitelist;
+        set
+        {
+            _whitelist = value;
+            Resync();
+        }
+    }
+
     /// <summary>本地插值出当前帧：播放中按 <c>位置 + 经过时间 × 速率</c> 推进，纯本地计算（不访问 SMTC）。</summary>
     public MusicFrame Interpolate()
     {
@@ -117,7 +139,7 @@ public sealed class SmtcMediaSource : IDisposable
 
     public async Task PlayPauseAsync()
     {
-        var s = _manager?.GetCurrentSession();
+        var s = _session;
         if (s is null) return;
         try { await s.TryTogglePlayPauseAsync(); }
         catch (Exception ex) { Logger.Warn($"SMTC 播放暂停失败：{ex.Message}"); }
@@ -125,7 +147,7 @@ public sealed class SmtcMediaSource : IDisposable
 
     public async Task NextAsync()
     {
-        var s = _manager?.GetCurrentSession();
+        var s = _session;
         if (s is null) return;
         try { await s.TrySkipNextAsync(); }
         catch (Exception ex) { Logger.Warn($"SMTC 下一曲失败：{ex.Message}"); }
@@ -133,7 +155,7 @@ public sealed class SmtcMediaSource : IDisposable
 
     public async Task PreviousAsync()
     {
-        var s = _manager?.GetCurrentSession();
+        var s = _session;
         if (s is null) return;
         try { await s.TrySkipPreviousAsync(); }
         catch (Exception ex) { Logger.Warn($"SMTC 上一曲失败：{ex.Message}"); }
@@ -221,9 +243,12 @@ public sealed class SmtcMediaSource : IDisposable
         if (_disposed || _manager is null)
             return;
 
+        ReportObservedSources();
+
         try
         {
             var session = PickSession();
+            _session = session;
             AttachSession(session);
 
             if (session is null)
@@ -280,7 +305,10 @@ public sealed class SmtcMediaSource : IDisposable
         }
     }
 
-    /// <summary>优先取「正在播放」的会话，否则退回当前会话（比只听 CurrentSession 稳）。</summary>
+    /// <summary>
+    /// 在**白名单允许**的会话里挑一个：当前在播 → 任意在播 → 当前 → 任意允许，全不允许则 <c>null</c>
+    /// （调用方据此显示空态，而不是退回未授权的当前会话）。挑选规则见 <see cref="SessionSelection"/>。
+    /// </summary>
     private GlobalSystemMediaTransportControlsSession? PickSession()
     {
         var manager = _manager;
@@ -288,23 +316,59 @@ public sealed class SmtcMediaSource : IDisposable
             return null;
 
         var current = manager.GetCurrentSession();
-        if (IsPlayingSession(current))
-            return current;
 
+        var sessions = new List<GlobalSystemMediaTransportControlsSession>();
         try
         {
             foreach (var s in manager.GetSessions())
-            {
-                if (IsPlayingSession(s))
-                    return s;
-            }
+                sessions.Add(s);
         }
         catch (Exception ex)
         {
             Logger.Warn($"SMTC 枚举会话失败：{ex.Message}");
         }
 
-        return current;
+        if (current is not null && !sessions.Contains(current))
+            sessions.Insert(0, current);
+
+        var candidates = new List<SessionSelection.Candidate>(sessions.Count);
+        foreach (var session in sessions)
+            candidates.Add(new SessionSelection.Candidate(
+                ReadSourceAppId(session), IsPlayingSession(session), ReferenceEquals(session, current)));
+
+        int index = SessionSelection.Pick(candidates, _whitelist);
+        return index >= 0 ? sessions[index] : null;
+    }
+
+    /// <summary>把枚举到的所有来源 AUMID 报给上游（设置页据此列出「见过的来源」候选），含未授权的。</summary>
+    private void ReportObservedSources()
+    {
+        var handler = SourcesObserved;
+        var manager = _manager;
+        if (handler is null || manager is null)
+            return;
+
+        List<string> ids;
+        try
+        {
+            ids = new List<string>();
+            foreach (var session in manager.GetSessions())
+            {
+                var id = ReadSourceAppId(session);
+                if (!string.IsNullOrWhiteSpace(id))
+                    ids.Add(id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"SMTC 枚举来源失败：{ex.Message}");
+            return;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            handler(ids);
+        else
+            Dispatcher.UIThread.Post(() => handler(ids));
     }
 
     private static bool IsPlayingSession(GlobalSystemMediaTransportControlsSession? session)
@@ -429,6 +493,7 @@ public sealed class SmtcMediaSource : IDisposable
         _disposed = true;
         _connectTimer.Stop();
         _manager = null;
+        _session = null;
 
         _cover?.Dispose();
         _cover = null;
