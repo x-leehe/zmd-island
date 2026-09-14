@@ -15,6 +15,7 @@ using Avalonia.Threading;
 using EndfieldCharge.Contracts;
 using EndfieldCharge.Host.Menu;
 using EndfieldCharge.Host.Plugins;
+using EndfieldCharge.Services;
 using EndfieldCharge.Settings;
 using Path = Avalonia.Controls.Shapes.Path;
 
@@ -38,6 +39,9 @@ public partial class IslandContextMenuWindow : Window
 {
     public event Action? SettingsClicked;
 
+    /// <summary>「免打扰 ▸」选择了一个档位（由 HudWindow 负责持久化与生效）。</summary>
+    public event Action<DndOption>? DndRequested;
+
     /// <summary>「退出」条目被点击：宿主据此关闭应用（与托盘菜单的退出项同一语义）。</summary>
     public event Action? ExitClicked;
 
@@ -59,6 +63,7 @@ public partial class IslandContextMenuWindow : Window
 
     private const string HostTopmostId = "host.topmost";
     private const string HostPluginsId = "host.plugins";
+    private const string HostDndId = "host.dnd";
 
     private static readonly TimeSpan OpenDuration = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan CloseDuration = TimeSpan.FromMilliseconds(150);
@@ -80,7 +85,6 @@ public partial class IslandContextMenuWindow : Window
 
     // ---- 动态布局（BuildMenu 计算）----
     private IReadOnlyList<MenuContribution> _contributions = Array.Empty<MenuContribution>();
-    private MenuContribution? _pluginsItem;   // 「插件 ▸」宿主固定项
     private double _surfaceH;
     private double _subLeft;
     private double _subTop;
@@ -123,6 +127,38 @@ public partial class IslandContextMenuWindow : Window
             Section = MenuSection.HostFixed,
             Children = pluginChildren,
         };
+
+        // 免打扰（整岛生效）：父条目平时就显示当前状态（生效时带剩余量），子菜单是 5 个档位
+        var dndChildren = new List<MenuContribution>();
+        if (Dnd.IsActive(_settings, DateTime.UtcNow))
+            dndChildren.Add(DndItem(DndOption.Off));
+
+        foreach (var option in Dnd.MenuOptions)
+            dndChildren.Add(DndItem(option));
+
+        var dnd = new MenuContribution
+        {
+            Id = HostDndId,
+            Header = Dnd.Describe(_settings, DateTime.UtcNow),
+            Target = MenuTarget.Island,
+            Section = MenuSection.HostFixed,
+            Children = dndChildren,
+        };
+
+        MenuContribution DndItem(DndOption option) => new()
+        {
+            Id = $"{HostDndId}.{option}",
+            Header = Dnd.Label(option),
+            Target = MenuTarget.Island,
+            Section = MenuSection.HostFixed,
+            // 只有「暂停」是能一眼看出的状态；定时档位没记住是哪一个，靠父条目的剩余量表达
+            IsChecked = option == DndOption.Pause && _settings.DndPaused,
+            Command = () =>
+            {
+                RequestClose();
+                DndRequested?.Invoke(option);
+            },
+        };
         var settings = new MenuContribution
         {
             Id = "host.settings",
@@ -148,8 +184,7 @@ public partial class IslandContextMenuWindow : Window
             },
         };
 
-        var hostFixed = new[] { topmost, plugins, settings, exit };
-        _pluginsItem = plugins;
+        var hostFixed = new[] { topmost, dnd, plugins, settings, exit };
         _contributions = PluginMenuComposer.Compose(MenuTarget.Island, registry, hostFixed);
 
         var hover = new SolidColorBrush(HoverColor);
@@ -160,6 +195,8 @@ public partial class IslandContextMenuWindow : Window
         SubStack.Children.Clear();
 
         // ---- 主表面行 ----
+        var submenuRows = new List<(MenuContribution Item, double Top)>();
+        double subBottom = SurfaceTop;   // 窗口至少要被最高 / 最靠下的那个子菜单撑开
         double y = SurfacePadding;
         for (int i = 0; i < _contributions.Count; i++)
         {
@@ -179,16 +216,20 @@ public partial class IslandContextMenuWindow : Window
             {
                 var row = BuildRow(item, hover, fg);
                 MenuStack.Children.Add(row);
-                if (ReferenceEquals(item, _pluginsItem))
-                    _pluginsRowTop = y;
 
-                // 「插件 ▸」悬停展开子菜单
-                if (ReferenceEquals(item, _pluginsItem) && item.Children is { Count: > 0 })
+                // 任何带子项的条目都支持悬停展开，不只是「插件 ▸」——
+                // 上一版只给「插件 ▸」接了 PointerEntered：免打扰明明有子项（5 档 + 取消），
+                // 却没有任何一行去展开它，也没有把子项渲染进子表面 → 点开像个 stub。
+                if (item.Children is { Count: > 0 })
                 {
+                    double rowTop = y;
+                    submenuRows.Add((item, rowTop));
+                    subBottom = Math.Max(subBottom, SurfaceTop + rowTop + SubmenuHeightFor(item.Children.Count));
+
                     row.PointerEntered += (_, _) =>
                     {
                         CancelSubmenuClose();
-                        OpenSubmenu();
+                        ShowSubmenuFor(item, rowTop, hover, fg);
                     };
                     row.PointerExited += (_, _) => ScheduleSubmenuClose();
                 }
@@ -202,46 +243,57 @@ public partial class IslandContextMenuWindow : Window
         _surfaceH = y + SurfacePadding;
         MainSurface.Height = _surfaceH;
 
-        // ---- 子菜单行（插件 ▸ children）----
-        var children = _pluginsItem?.Children;
-        if (children is { Count: > 0 })
-        {
-            double subY = SurfacePadding;
-            for (int i = 0; i < children.Count; i++)
-            {
-                SubStack.Children.Add(BuildRow(children[i], hover, fg));
-                subY += RowHeight;
-                if (i < children.Count - 1)
-                    subY += StackSpacing;
-            }
-            _subH = subY + SurfacePadding;
-            SubSurface.Height = _subH;
-        }
-        else
-        {
-            _subH = 0d;
-        }
-
-        // ---- 子菜单位置 + 窗口尺寸（随行数计算）----
+        // ---- 子菜单：内容与位置都改成"悬停哪一行就展开哪一行"，这里只负责给窗口预留尺寸 ----
         _subLeft = SurfaceLeft + SurfaceWidth + SubmenuGap;
-        _subTop = SurfaceTop + _pluginsRowTop;
+        _subH = submenuRows.Count == 0 ? 0d : SubmenuHeightFor(submenuRows[0].Item.Children!.Count);
+        _subTop = SurfaceTop + (submenuRows.Count == 0 ? SurfacePadding : submenuRows[0].Top);
 
         Canvas.SetLeft(SubSurface, _subLeft);
         Canvas.SetTop(SubSurface, _subTop);
         SubSurface.Width = SubmenuWidth;
+        SubSurface.Height = _subH;
 
         Width = _subLeft + SubmenuWidth + SurfaceLeft;
-        Height = Math.Max(_surfaceH, _subTop + _subH) + SurfaceTop + BottomMargin;
+        Height = Math.Max(_surfaceH, subBottom) + SurfaceTop + BottomMargin;
 
         // 悬停穿过两表面之间 4px 间隙时保持展开
-        if (children is { Count: > 0 })
+        if (submenuRows.Count > 0)
         {
             SubSurface.PointerEntered += (_, _) => CancelSubmenuClose();
             SubSurface.PointerExited += (_, _) => ScheduleSubmenuClose();
         }
     }
 
-    private double _pluginsRowTop;
+    /// <summary>某个父条目展开后，子表面需要多高（由子项行数决定）。</summary>
+    private static double SubmenuHeightFor(int rows) =>
+        (2d * SurfacePadding) + (rows * RowHeight) + (Math.Max(0, rows - 1) * StackSpacing);
+
+    /// <summary>
+    /// 展开某一行的子菜单：**先换内容、再定位**。
+    /// 已经在展开态时直接换内容（不重播入场动画），这样在「免打扰」「插件」之间来回悬停不会闪。
+    /// </summary>
+    private void ShowSubmenuFor(MenuContribution item, double rowTop, IBrush hover, IBrush fg)
+    {
+        if (item.Children is not { Count: > 0 } children)
+            return;
+
+        SubStack.Children.Clear();
+        foreach (var child in children)
+            SubStack.Children.Add(BuildRow(child, hover, fg));
+
+        _subH = SubmenuHeightFor(children.Count);
+        _subTop = SurfaceTop + rowTop;
+        SubSurface.Height = _subH;
+        Canvas.SetTop(SubSurface, _subTop);
+
+        if (SubSurface.IsVisible)
+        {
+            _submenuRect = ComputeSubmenuScreenRect();
+            return;
+        }
+
+        OpenSubmenu();
+    }
 
     /// <summary>按贡献生成一行：文案 +（子菜单箭头 | 对勾），禁用行变暗且无交互。</summary>
     private Border BuildRow(MenuContribution item, IBrush hover, IBrush fg)
