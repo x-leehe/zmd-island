@@ -58,8 +58,10 @@
           </Border.RenderTransform>
 
           <Grid>
-            <!-- 展开态：全屏平滑频谱背景 -->
-            <Path x:Name="SpectrumPath" Width="560" Height="160" Stretch="Fill"
+            <!-- 展开态：全屏平滑频谱背景。Stretch 必须是 None：
+                 用 Fill 会把几何的**包围盒**拉伸铺满，于是各段趋近 0 时残余被重新拉满
+                 —— 表现成"暂停后缓缓填充"，而不是"缓缓落下"。 -->
+            <Path x:Name="SpectrumPath" Width="560" Height="160" Stretch="None"
                   HorizontalAlignment="Center" VerticalAlignment="Center"
                   Opacity="0" IsHitTestVisible="False"/>
 
@@ -78,9 +80,20 @@
                   <Image x:Name="WaitCoverImage" Stretch="UniformToFill"/>
                 </Grid>
               </Border>
-              <TextBlock x:Name="WaitLyric" Canvas.Left="72" Canvas.Top="15" Width="264" Height="32"
-                         FontSize="20" FontWeight="Bold" Foreground="White" TextAlignment="Left"
-                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+              <!-- 歌词：**定宽的框**（外层 Canvas 的尺寸就是可视窗口）+ 里面的「歌词层」整体平移
+                   —— 框不动、文字从框里滑过。
+                   歌词本体（TextBlock）**不给 Width、不做 TextTrimming**：放不下就让它溢出，由框来裁。
+                   这样窗口里看到的永远是**完整未改写文本**的某一段，绝不会出现省略号。 -->
+              <Canvas x:Name="WaitLyricFrame" Canvas.Left="72" Canvas.Top="15" Width="264" Height="32"
+                      ClipToBounds="True">
+                <Canvas.Clip>
+                  <RectangleGeometry Rect="0,0,264,32"/>
+                </Canvas.Clip>
+                <Canvas x:Name="WaitLyricLayer" Width="264" Height="32">
+                  <TextBlock x:Name="WaitLyric" FontSize="20" FontWeight="Bold" Foreground="White"
+                             TextAlignment="Left" TextTrimming="None"/>
+                </Canvas>
+              </Canvas>
               <Canvas x:Name="WaitSpectrum" Canvas.Left="419" Canvas.Top="18" Width="16" Height="24">
                 <Rectangle x:Name="WaitBar1" Width="3" RadiusX="1.5" RadiusY="1.5" Fill="#FFC6CA4C" Canvas.Left="0"/>
                 <Rectangle x:Name="WaitBar2" Width="3" RadiusX="1.5" RadiusY="1.5" Fill="#FFC6CA4C" Canvas.Left="6.5"/>
@@ -104,6 +117,7 @@
                            HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Canvas Width="24" Height="24">
                       <Path x:Name="WaitRingIcon" Data="{DynamicResource Icon.PlayArrow}" Fill="White"/>
+                      <Path x:Name="WaitRingPauseIcon" Data="{DynamicResource Icon.Pause}" Fill="White" IsVisible="False"/>
                     </Canvas>
                   </Viewbox>
                 </Grid>
@@ -131,9 +145,16 @@
                 <TextBlock x:Name="UnfoldArtistText" FontSize="16" Foreground="#8CFFFFFF"
                            TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
               </StackPanel>
-              <TextBlock x:Name="UnfoldLyric" Canvas.Left="144" Canvas.Top="80" Width="200" Height="32"
-                         FontSize="18" FontWeight="Bold" Foreground="White" TextAlignment="Left"
-                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+              <Canvas x:Name="UnfoldLyricFrame" Canvas.Left="144" Canvas.Top="80" Width="200" Height="32"
+                      ClipToBounds="True">
+                <Canvas.Clip>
+                  <RectangleGeometry Rect="0,0,200,32"/>
+                </Canvas.Clip>
+                <Canvas x:Name="UnfoldLyricLayer" Width="200" Height="32">
+                  <TextBlock x:Name="UnfoldLyric" FontSize="18" FontWeight="Bold" Foreground="White"
+                             TextAlignment="Left" TextTrimming="None"/>
+                </Canvas>
+              </Canvas>
               <Canvas x:Name="UnfoldProgress" Canvas.Left="144" Canvas.Top="116" Width="200" Height="8">
                 <Border Width="200" Height="8" CornerRadius="4" Background="#26FFFFFF"/>
                 <Border x:Name="UnfoldProgressFill" Width="90" Height="8" CornerRadius="4"
