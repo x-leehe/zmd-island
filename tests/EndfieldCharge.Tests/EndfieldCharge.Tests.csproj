@@ -24,10 +24,4 @@
     <ProjectReference Include="..\..\EndfieldCharge.csproj" />
   </ItemGroup>
 
-  <!-- 音乐插件里的纯逻辑（LRC 解析、以及后续的歌词匹配 / 频谱分带）同样按现状直接引用：
-       插件与测试工程的 TFM 一致（net8.0-windows10.0.17763.0），无需额外平台调整。 -->
-  <ItemGroup>
-    <ProjectReference Include="..\..\plugins\EndfieldCharge.Plugin.Music\EndfieldCharge.Plugin.Music.csproj" />
-  </ItemGroup>
-
 </Project>

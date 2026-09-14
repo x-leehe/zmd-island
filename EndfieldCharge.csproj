@@ -53,16 +53,15 @@
 
   <!-- 外部插件：构建它（但不引用其类型），并把产出的 DLL 复制到输出 plugins/。
        宿主运行时由 PluginLoader 从该目录加载。
-       插件是**项目内的子项目**（不单独建仓库），随应用一起发版。 -->
+       插件是**项目内的子项目**（不单独建仓库），随应用一起发版。
+       新增插件：把它的 csproj 以 ReferenceOutputAssembly=false 加进本 ItemGroup，
+       并在下面的 <PluginDll> 列表里补一条对应的产物路径 —— 两个列表一一对应。 -->
   <ItemGroup>
-    <ProjectReference Include="plugins\EndfieldCharge.Plugin.Music\EndfieldCharge.Plugin.Music.csproj">
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
   </ItemGroup>
 
-  <!-- 插件产物路径做成共享 item：Build（调试运行）与 Publish（便携版/安装包）都要用 -->
+  <!-- 插件产物路径做成共享 item：Build（调试运行）与 Publish（便携版/安装包）都要用。
+       @(PluginDll) 为空时两个复制目标自动成为空操作。 -->
   <ItemGroup>
-    <PluginDll Include="$(MSBuildThisFileDirectory)plugins\EndfieldCharge.Plugin.Music\bin\$(Configuration)\net8.0-windows10.0.17763.0\EndfieldCharge.Plugin.Music.dll" />
   </ItemGroup>
 
   <Target Name="CopyPluginsToOutput" AfterTargets="Build">
