@@ -35,6 +35,15 @@ public sealed record AppSettings
 
     /// <summary>鼠标滚轮在岛上的切换行为（循环 / 到边界停止 / 禁用）。</summary>
     public WheelSwitchMode WheelSwitch { get; init; } = WheelSwitchMode.Wrap;
+
+    /// <summary>
+    /// 免打扰截止时刻（UTC）；<c>null</c> = 没有定时免打扰。
+    /// 到期与否靠"当前时刻与它比较"得出，**不需要定时器**。
+    /// </summary>
+    public DateTime? DndUntilUtc { get; init; }
+
+    /// <summary>免打扰「暂停」：一直生效，直到用户手动取消。</summary>
+    public bool DndPaused { get; init; }
 }
 
 /// <summary>滚轮在岛上切换岛的行为。</summary>

@@ -273,9 +273,17 @@ public partial class HudWindow : Window, IIslandHost
     // ---------------- 岛皮肤轮转（鼠标滚轮切换） ----------------
 
     /// <summary>切换活动皮肤：换视觉树 / 窗口高度，缩放同步到全局缩放，并重挂展开按钮转发。</summary>
+    /// <summary>
+    /// 切换皮肤：接管视觉树与「展开 / 收起」事件。
+    /// <para>
+    /// **必须无条件先解除订阅**：同一皮肤会被多次接管（滚轮切换 / 内容自动弹出 / 托盘显示），
+    /// 只在"换了皮肤"时解除，会让 <see cref="OnExpandToggled"/> 在同一皮肤上挂 N 份 ——
+    /// 一次点击触发 N 次：第 1 次展开、第 2 次立刻收起，表现成"岛无法展开"。
+    /// </para>
+    /// </summary>
     private void ActivateSkin(IIslandSkin skin)
     {
-        if (!ReferenceEquals(_skin, skin) && _skin is IIslandExpandToggle old)
+        if (_skin is IIslandExpandToggle old)
             old.ExpandToggled -= OnExpandToggled;
 
         _skin = skin;
@@ -396,6 +404,10 @@ public partial class HudWindow : Window, IIslandHost
         if (target is null)
             return false;
 
+        // 免打扰：**整岛生效**。插件请求展开属于「主动弹出」，这时直接拒掉（返回 false 让插件知道没弹）。
+        if (IsProactiveShowBlocked(target.Id))
+            return false;
+
         // 已经是该皮肤的展开态：不重播动画
         if (ReferenceEquals(target, _skin) && _sm.Current == IslandVisualState.Response)
             return true;
@@ -439,6 +451,18 @@ public partial class HudWindow : Window, IIslandHost
                 desktop.Shutdown();
         };
         menu.MenuClosed += OnContextMenuClosed;
+
+        // 免打扰：改档位 → 持久化 → 立即生效（闸门读的就是 _settings）
+        menu.DndRequested += option =>
+        {
+            var updated = Dnd.Apply(_settings, option, DateTime.UtcNow);
+            SettingsManager.Save(updated);
+            ApplySettings(updated);
+
+            Logger.Info(Dnd.IsActive(updated, DateTime.UtcNow)
+                ? $"Hud: 免打扰已开启（{option}）"
+                : "Hud: 免打扰已取消");
+        };
 
         // 菜单打开期间暂停空闲计时（避免岛在菜单后面收缩/隐藏）
         _menuOpen = true;
@@ -697,15 +721,38 @@ public partial class HudWindow : Window, IIslandHost
         _sm.TryTransition(IslandVisualState.Waiting);
     }
 
-    public async Task ShowSimpleAsync(BatterySnapshot? battery, AnimationOptions? options = null) =>
+    public async Task ShowSimpleAsync(BatterySnapshot? battery, AnimationOptions? options = null)
+    {
+        if (IsProactiveShowBlocked("battery.meta"))
+            return;
+
         await TriggerResponseCoreAsync(battery, IslandPlayKind.Simple, powerSaver: false, options);
+    }
 
     public async Task ShowAndPlayAsync(
         BatterySnapshot? battery,
         bool acOnline,
         HudPlayMode mode = HudPlayMode.Charge,
-        AnimationOptions? options = null) =>
+        AnimationOptions? options = null)
+    {
+        if (IsProactiveShowBlocked("battery.meta"))
+            return;
+
         await TriggerResponseCoreAsync(battery, IslandPlayKind.Full, mode == HudPlayMode.PowerSaver, options);
+    }
+
+    /// <summary>
+    /// 免打扰闸门：**只拦"主动弹出"**（本方法与插件请求展开）。
+    /// 托盘显示 / 滚轮翻页 / 悬停唤醒都是用户手势，不经这里、也不该被拦。
+    /// </summary>
+    private bool IsProactiveShowBlocked(string skinId)
+    {
+        if (!Services.Dnd.IsActive(_settings, DateTime.UtcNow))
+            return false;
+
+        Logger.Info($"Hud: 免打扰生效 → 跳过主动弹出（皮肤 {skinId}）");
+        return true;
+    }
 
     /// <summary>灵动岛当前是否可见（托盘左键开关用）。</summary>
     public bool IsIslandVisible => IsVisible;
@@ -757,20 +804,37 @@ public partial class HudWindow : Window, IIslandHost
         return null;
     }
 
-    /// <summary>岛内「展开 / 收起」按钮（IIslandExpandToggle）→ 等待态 ↔ 展开态（复用 Response 状态）。</summary>
+    /// <summary>
+    /// 岛内「展开 / 收起」按钮（IIslandExpandToggle）→ 等待态 / 收缩态 ↔ 展开态（复用 Response 状态）。
+    /// </summary>
     private void OnExpandToggled()
     {
-        if (_sm.Current == IslandVisualState.Waiting)
+        switch (_sm.Current)
         {
-            if (_sm.TryTransition(IslandVisualState.Response))
-            {
-                var ct = RefreshCts();
-                _ = PlayMusicResponseAsync(ct);
-            }
-        }
-        else if (_sm.Current == IslandVisualState.Response)
-        {
-            _sm.TryTransition(IslandVisualState.Waiting);
+            // 等待态、**收缩态**都能展开：状态机明确允许 Contracted → Response，
+            // 这里以前只写了 Waiting，于是收缩态下的展开请求被静默丢掉（"点了没反应"）。
+            case IslandVisualState.Waiting:
+            case IslandVisualState.Contracted:
+                if (_sm.TryTransition(IslandVisualState.Response))
+                {
+                    var ct = RefreshCts();
+                    _ = PlayMusicResponseAsync(ct);
+                }
+                else
+                {
+                    Logger.Warn($"Hud: 展开请求被状态机拒绝（{_sm.Current} → Response）");
+                }
+                break;
+
+            case IslandVisualState.Response:
+                _sm.TryTransition(IslandVisualState.Waiting);
+                break;
+
+            default:
+                // 隐藏态本来就没有可点的展开按钮；真走到这里就记一行 ——
+                // 免得又变成"感觉到了但描述不出来"的偶发问题。
+                Logger.Info($"Hud: 展开请求被忽略（当前状态 {_sm.Current}）");
+                break;
         }
     }
 
