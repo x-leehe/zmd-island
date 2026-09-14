@@ -66,7 +66,7 @@ Note: `Host/`, `Services/`, `Settings/`, `Views/`, `Styles/`, `Assets/` are fold
 - A plugin may reference ONLY the two contract assemblies (+ Avalonia) — **never** the host `EndfieldCharge.csproj`.
 - Icons are Material 24×24 `StreamGeometry` in `Contracts.Avalonia/Styles/Geometries.axaml`; island geometry comes from `IslandMetrics`.
 - Formatting: LF + UTF-8; 4-space C#, 2-space XAML/csproj/JSON/YAML; file-scoped namespaces; `_camelCase` for readonly/static private fields.
-- `docs/` is a **HUMAN-ONLY** layout design canvas (drag-and-drop island mockups). Agents must NOT open it, design with it, or edit any file under it — it is a human design tool, never agent input or build input.
+- `docs/` is the layout design canvas (drag-and-drop island mockups). **Design blueprints are human-authored**: agents must NOT generate or edit `docs/designs/*.json` (or the archived `*-designs.js` templates) — the final designs must come from a human hand. Agents MAY extend the canvas *tool* itself (HTML/CSS/JS under `docs/`) when it lacks a feature or component. This is a project initiative, not a hard rule — exercise judgement.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 - A plugin referencing the host project (`EndfieldCharge.csproj`).
@@ -77,13 +77,13 @@ Note: `Host/`, `Services/`, `Settings/`, `Views/`, `Styles/`, `Assets/` are fold
 - A multi-keyframe `Animation` without per-segment `KeySpline`.
 - `.Result` / `.Wait()` on the UI thread.
 - Committing `bin/`, `obj/`, `publish/`, logs or IDE files; non-English commit messages; bundling unrelated changes; reformatting untouched files.
-- Using, designing with, or editing `docs/` — the layout design canvas is HUMAN-ONLY; agents must leave it alone.
+- Authoring or editing design blueprints (`docs/designs/*.json`, `docs/assets/js/*-designs.js`) — final designs must be human-made. (Extending the canvas *tool* itself is allowed.)
 
 ## UNIQUE STYLES
 - Island pill: background `#312F30`, radius 30, shadow `0 1 6 #40000000`; global scale applies to the whole visual tree.
 - The settings panel is a real, **activatable**, borderless window anchored under the island (not an overlay). The island itself is `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`: it never steals focus and is not in Alt+Tab.
 - `plugins/` is loaded at runtime; a missing/invalid plugin DLL is skipped, never fatal.
-- Vestigial: `Animations/` is empty; `reference/`, `references/` are vendored and not part of the build. `docs/` is the human-only design canvas (see CONVENTIONS) and is likewise not build input.
+- `docs/` is the island design canvas: the **tool** may be extended by agents, but the **blueprints** (`docs/designs/*.json`) must be human-authored. Not build input.
 
 ## COMMANDS
 ```bash
