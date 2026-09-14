@@ -41,6 +41,25 @@
           <ComboBox x:Name="LyricSourceCombo" HorizontalAlignment="Stretch"/>
         </StackPanel>
 
+        <!-- 音乐来源白名单：默认空 ⇒ 不采集也不主动弹岛；可手动添加，也可点选"见过的来源" -->
+        <StackPanel Spacing="6">
+          <TextBlock x:Name="LabelMusicSourceWhitelist" FontSize="12" Foreground="#888888"/>
+          <TextBlock x:Name="HintMusicSourceWhitelist" FontSize="11" Foreground="#6E6E6E" TextWrapping="Wrap"/>
+
+          <TextBlock x:Name="WhitelistAllowedLabel" FontSize="11" Foreground="#6E6E6E"/>
+          <StackPanel x:Name="WhitelistRows" Spacing="4"/>
+          <TextBlock x:Name="WhitelistEmptyLabel" FontSize="11" Foreground="#6E6E6E"/>
+
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox x:Name="WhitelistInput" FontSize="12"/>
+            <Button x:Name="WhitelistAddButton" Grid.Column="1" Margin="6,0,0,0" FontSize="12"/>
+          </Grid>
+
+          <TextBlock x:Name="WhitelistKnownLabel" FontSize="11" Foreground="#6E6E6E"/>
+          <StackPanel x:Name="WhitelistKnownRows" Spacing="4"/>
+          <TextBlock x:Name="WhitelistKnownEmptyLabel" FontSize="11" Foreground="#6E6E6E"/>
+        </StackPanel>
+
         <TextBlock x:Name="SavedText" FontSize="11" Foreground="#C6CA4C" Opacity="0"/>
       </StackPanel>
     </Border>
