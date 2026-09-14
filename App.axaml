@@ -5,12 +5,16 @@
 
   <Application.Styles>
     <FluentTheme />
+    <!-- 全局「设置控件」排版资产（section-title / row-label / row-desc / row-value 等） -->
+    <StyleInclude Source="avares://EndfieldCharge.Contracts.Avalonia/Styles/SettingsComponents.axaml"/>
   </Application.Styles>
 
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="avares://EndfieldCharge/Styles/HudTheme.axaml"/>
+        <!-- 全局「设置控件」主题 token（强调色 / 滑块 / 开关） -->
+        <ResourceInclude Source="avares://EndfieldCharge.Contracts.Avalonia/Styles/SettingsTokens.axaml"/>
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>

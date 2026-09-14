@@ -1,0 +1,42 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    EndfieldCharge 全局「设置控件」排版资产：任何面板（宿主设置页 / 插件自绘面板）都可直接引用
+    这些 class，字号与版式即天然一致。字号刻意不锁死具体控件——面板仍可自行覆写大小。
+      · section-title 分组标题（fs18 强调色）
+      · section-bar   标题下的 36×8 强调条
+      · row-label     设置行主标签（fs16）
+      · row-desc      设置行说明（fs14 muted）
+      · row-value     行右侧数值（fs16 muted 右对齐）
+  -->
+  <Style Selector="TextBlock.section-title">
+    <Setter Property="FontSize" Value="18"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="#C6CA4C"/>
+    <Setter Property="LetterSpacing" Value="1"/>
+  </Style>
+  <Style Selector="Border.section-bar">
+    <Setter Property="Width" Value="36"/>
+    <Setter Property="Height" Value="8"/>
+    <Setter Property="Background" Value="#504E4F"/>
+    <Setter Property="HorizontalAlignment" Value="Left"/>
+    <Setter Property="Margin" Value="0,6,0,12"/>
+  </Style>
+  <Style Selector="TextBlock.row-label">
+    <Setter Property="FontSize" Value="16"/>
+    <Setter Property="Foreground" Value="#E8E8E8"/>
+    <Setter Property="TextWrapping" Value="Wrap"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="TextBlock.row-desc">
+    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="Foreground" Value="#888888"/>
+    <Setter Property="TextWrapping" Value="Wrap"/>
+  </Style>
+  <Style Selector="TextBlock.row-value">
+    <Setter Property="FontSize" Value="16"/>
+    <Setter Property="Foreground" Value="#888888"/>
+    <Setter Property="TextAlignment" Value="Right"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+</Styles>

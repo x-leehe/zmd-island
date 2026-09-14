@@ -23,6 +23,9 @@ public static class Localization
         }
     }
 
+    /// <summary>当前界面是否为中文（供需要按语言微调排版的窗口使用，如设置抽屉的页签字号）。</summary>
+    public static bool IsChineseUi => IsChinese;
+
     // ---- HUD ----
     public static string TagLine => IsChinese ? "/// 超充模式" : "/// SUPER CHARGE MODE";
     public static string TitleMode => IsChinese ? "超充模式" : "Super Charge Mode";
@@ -57,7 +60,12 @@ public static class Localization
     public static string TabGeneral => IsChinese ? "通用" : "General";
     public static string TabNotifications => IsChinese ? "通知" : "Notifications";
     public static string TabAbout => IsChinese ? "关于" : "About";
+    public static string TabDeveloper => IsChinese ? "开发者" : "Developer";
+    public static string DeveloperComingSoon => IsChinese ? "开发者选项即将提供" : "Developer options coming soon";
     public static string LabelScale => IsChinese ? "全局缩放" : "Global Scale";
+    /// <summary>抽屉头部品牌字标（中英一致，不随语言变化）。</summary>
+    public static string Wordmark => "OVER THE FRONTIER | INTO THE FRONT";
+    public static string BtnCollapse => IsChinese ? "收起" : "Collapse";
 
     // ---- 免打扰（整岛生效，右键菜单「免打扰 ▸」） ----
     public static string Dnd => IsChinese ? "免打扰" : "Do Not Disturb";
@@ -104,6 +112,9 @@ public static class Localization
     public static string LabelPosition => IsChinese ? "HUD 位置" : "HUD Position";
     public static string LabelMonitor => IsChinese ? "显示器" : "Monitor";
     public static string LabelWheelSwitch => IsChinese ? "滚轮切换岛" : "Wheel Island Switching";
+    public static string DescWheelSwitch => IsChinese
+        ? "鼠标滚轮滚动时，如何切换灵动岛"
+        : "How scrolling the mouse wheel switches islands";
     public static string WheelSwitchWrap => IsChinese ? "循环切换" : "Cycle Through";
     public static string WheelSwitchClamp => IsChinese ? "到边界即停" : "Stop at Ends";
     public static string WheelSwitchDisabled => IsChinese ? "禁用" : "Disabled";

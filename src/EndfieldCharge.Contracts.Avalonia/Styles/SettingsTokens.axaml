@@ -1,0 +1,32 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    EndfieldCharge 全局「设置控件」主题 token：宿主设置页与插件自绘面板共用。
+    引入后 Fluent 的滑块 / 开关即跟随本机黄绿强调色（默认蓝与主题冲突）。
+  -->
+  <Color x:Key="SystemAccentColor">#C6CA4C</Color>
+  <Color x:Key="SystemAccentColorLight1">#CDD05A</Color>
+  <Color x:Key="SystemAccentColorLight2">#D4D868</Color>
+  <Color x:Key="SystemAccentColorLight3">#DADF76</Color>
+  <Color x:Key="SystemAccentColorDark1">#B2B644</Color>
+  <Color x:Key="SystemAccentColorDark2">#9EA13C</Color>
+  <Color x:Key="SystemAccentColorDark3">#8A8D34</Color>
+  <SolidColorBrush x:Key="SliderTrackValueFill" Color="#C6CA4C"/>
+  <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#D3D75E"/>
+  <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#B3B840"/>
+  <SolidColorBrush x:Key="SliderTrackFill" Color="#26FFFFFF"/>
+  <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#33FFFFFF"/>
+  <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#26FFFFFF"/>
+  <SolidColorBrush x:Key="SliderThumbBackground" Color="#F0F0F0"/>
+  <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#FFFFFF"/>
+  <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#E0E0E0"/>
+  <!-- 滑块几何按设计：4px 轨道 + 16px 白色圆钮 -->
+  <x:Double x:Key="SliderTrackThemeHeight">4</x:Double>
+  <x:Double x:Key="SliderHorizontalHeight">24</x:Double>
+  <x:Double x:Key="SliderHorizontalThumbWidth">16</x:Double>
+  <x:Double x:Key="SliderHorizontalThumbHeight">16</x:Double>
+  <CornerRadius x:Key="SliderThumbCornerRadius">8</CornerRadius>
+  <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#C6CA4C"/>
+  <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#D3D75E"/>
+  <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#B3B840"/>
+</ResourceDictionary>

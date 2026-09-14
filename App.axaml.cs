@@ -191,7 +191,7 @@ public partial class App : Application
 
     private async Task TriggerSaverHudAsync()
     {
-        if (_hud is null) return;
+        if (_hud is null || _hud.ResponsesSuppressed) return;
 
         var snapshot = await Task.Run(() => BatteryService.GetSnapshot());
         await _hud.ShowAndPlayAsync(snapshot, acOnline: true, HudPlayMode.PowerSaver);
@@ -199,7 +199,7 @@ public partial class App : Application
 
     private async Task TriggerSimpleHudAsync()
     {
-        if (_hud is null) return;
+        if (_hud is null || _hud.ResponsesSuppressed) return;
 
         var (snapshot, _) = await Task.Run(() =>
         {
@@ -212,7 +212,7 @@ public partial class App : Application
 
     private async Task TriggerHudAsync()
     {
-        if (_hud is null) return;
+        if (_hud is null || _hud.ResponsesSuppressed) return;
 
         var (snapshot, acOnline) = await Task.Run(() =>
         {
@@ -498,9 +498,8 @@ public partial class App : Application
 
     private void OpenSettingsWindow(string initialTab = "General")
     {
-        // _hud 在 OnFrameworkInitializationCompleted 中先于托盘创建，此处必非空
-        var win = new SettingsWindow(_settings, _hud!, initialTab);
-        win.Show();
+        // 托盘「设置 / 关于」与岛右键菜单同一入口：锚定在灵动岛下方滑出的设置抽屉
+        _ = _hud?.OpenSettingsDrawerAsync(initialTab);
     }
 
     // ---------------- 收尾 ----------------

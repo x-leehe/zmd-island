@@ -65,7 +65,14 @@ public partial class HudWindow : Window, IIslandHost
     private int _idleGen;                     // 代际令牌：使过期回调失效
     private IslandVisualState _idleTarget;    // 计时到期 → 目标状态
     private DateTime? _dwellStarted;          // 隐藏态悬停开始时刻
-    private bool _menuOpen;                   // 右键菜单打开（暂停空闲计时）
+
+    /// <summary>空闲抑制计数：右键菜单 / 设置抽屉各自占一份，>0 时岛不排任何生命周期超时。</summary>
+    private int _idleSuppress;
+    private bool IdleSuppressed => _idleSuppress > 0;
+
+    /// <summary>设置抽屉（独立可激活窗口，锚定在岛下缘）；关闭后恢复空闲计时。</summary>
+    private SettingsWindow? _settingsDrawer;
+    private bool _settingsDrawerOpening;
 
     // ---- 点击穿透：整窗默认 WS_EX_TRANSPARENT（鼠标穿透到下层窗口），
     //      轮询光标位置，进入岛（胶囊）范围时临时移除该样式使其可交互。 ----
@@ -205,7 +212,7 @@ public partial class HudWindow : Window, IIslandHost
                 if (_sm.Current == IslandVisualState.Contracted)
                     _sm.TryTransition(IslandVisualState.Waiting);
             }
-            else if (!_menuOpen)
+            else if (!IdleSuppressed)
             {
                 ResumeIdleIfIdleState();
             }
@@ -334,6 +341,9 @@ public partial class HudWindow : Window, IIslandHost
         if (_skins.Count <= 1)
             return;
 
+        if (ResponsesSuppressed)
+            return; // 设置抽屉 / 菜单打开期间：滚轮不切岛
+
         if (_settings.WheelSwitch == WheelSwitchMode.Disabled)
             return;
 
@@ -407,6 +417,9 @@ public partial class HudWindow : Window, IIslandHost
 
     public IReadOnlyList<string> WheelSkinIds => _skins.Select(s => s.Id).ToArray();
 
+    /// <summary>弹出面板（右键菜单 / 设置抽屉）打开期间为 true：宿主拒绝一切插件的主动弹出与滚轮切岛。</summary>
+    public bool ResponsesSuppressed => IdleSuppressed;
+
     public bool SwitchSkin(string id)
     {
         var target = _skins.FirstOrDefault(s => s.Id == id) ?? FindSkinById(id);
@@ -421,6 +434,10 @@ public partial class HudWindow : Window, IIslandHost
     {
         var target = _skins.FirstOrDefault(s => s.Id == id) ?? FindSkinById(id);
         if (target is null)
+            return false;
+
+        // 弹出面板（设置抽屉 / 右键菜单）打开期间：不响应任何插件的主动弹出
+        if (ResponsesSuppressed)
             return false;
 
         // 免打扰：**整岛生效**。插件请求展开属于「主动弹出」，这时直接拒掉（返回 false 让插件知道没弹）。
@@ -458,11 +475,7 @@ public partial class HudWindow : Window, IIslandHost
             return;
 
         var menu = new IslandContextMenuWindow(_settings, _registry);
-        menu.SettingsClicked += () =>
-        {
-            var win = new SettingsWindow(_settings, this);
-            win.Show();
-        };
+        menu.SettingsClicked += () => _ = OpenSettingsDrawerAsync();
         menu.ExitClicked += () =>
         {
             // 与托盘菜单「退出」同一语义：走桌面生命周期，触发 App.OnDesktopExit 收尾
@@ -484,8 +497,7 @@ public partial class HudWindow : Window, IIslandHost
         };
 
         // 菜单打开期间暂停空闲计时（避免岛在菜单后面收缩/隐藏）
-        _menuOpen = true;
-        CancelIdle();
+        PushIdleSuppression();
 
         _contextMenu = menu;
         menu.ShowBelowIsland(GetIslandBoundsPixels(), screen);
@@ -494,8 +506,78 @@ public partial class HudWindow : Window, IIslandHost
     /// <summary>右键菜单关闭 → 恢复空闲计时。</summary>
     private void OnContextMenuClosed()
     {
-        _menuOpen = false;
-        ResumeIdleIfIdleState();
+        PopIdleSuppression();
+    }
+
+    // ---------------- 设置抽屉（锚定岛下缘，托盘 / 岛菜单 / App 共用入口） ----------------
+
+    /// <summary>
+    /// 在灵动岛正下方打开设置抽屉（已打开则聚焦）。打开前先确保岛可见且停在等待态——
+    /// 抽屉锚定岛的下缘，岛隐藏 / 收缩时会先唤醒（复用 <see cref="ShowWaitingAsync"/>）。
+    /// </summary>
+    public async Task OpenSettingsDrawerAsync(string initialTab = "General")
+    {
+        if (_settingsDrawer is not null || _settingsDrawerOpening)
+        {
+            _settingsDrawer?.Activate();
+            return;
+        }
+
+        _settingsDrawerOpening = true;
+        try
+        {
+            await EnsureIslandWaitingAsync();
+
+            var screen = ResolveScreen(_settings.MonitorIndex) ?? Screens.Primary;
+            if (screen is null)
+                return;
+
+            var drawer = new SettingsWindow(_settings, this, initialTab);
+            drawer.DrawerClosed += OnSettingsDrawerClosed;
+            _settingsDrawer = drawer;
+
+            PushIdleSuppression();
+            drawer.ShowBelowIsland(GetIslandBoundsPixels(), screen);
+        }
+        finally
+        {
+            _settingsDrawerOpening = false;
+        }
+    }
+
+    private void OnSettingsDrawerClosed()
+    {
+        _settingsDrawer = null;
+        PopIdleSuppression();
+    }
+
+    /// <summary>确保岛可见且停在等待态；唤醒后等揭示动画收敛（下缘连续两帧不变）再让抽屉锚定。</summary>
+    private async Task EnsureIslandWaitingAsync()
+    {
+        bool needsReveal = !IsVisible
+            || _sm.Current is IslandVisualState.Hidden or IslandVisualState.Contracted;
+
+        if (!needsReveal)
+            return;
+
+        await ShowWaitingAsync();
+
+        // 揭示是异步的（先抓一帧电量内容再 Show、再播等待态动画），
+        // 这里等岛几何完全稳定（连续两帧不变）再让抽屉锚定，避免按隐藏 / 收缩时的旧几何错位。
+        var last = default(PixelRect);
+        for (int i = 0; i < 30; i++)
+        {
+            await Task.Delay(16);
+
+            if (!IsVisible)
+                continue;
+
+            var rect = GetIslandBoundsPixels();
+            if (rect == last)
+                return;
+
+            last = rect;
+        }
     }
 
     /// <summary>从设置更新 HUD 参数（缩放、动画微调、位置、显示器、置顶、超时）。</summary>
@@ -633,10 +715,14 @@ public partial class HudWindow : Window, IIslandHost
     /// <summary>
     /// 空闲计时（T1/T2 复用单计时器 + 代际令牌防过期回调）。
     /// 到期 → TryTransition(_idleTarget)；非法转换由状态机拒绝并记录。
+    /// 抑制期间（菜单 / 设置抽屉打开）一律不排——异步进入等待态的收尾也要受它约束。
     /// </summary>
     private void ScheduleIdle(TimeSpan timeout, IslandVisualState expiryTarget)
     {
         CancelIdle();
+
+        if (IdleSuppressed)
+            return; // 弹出面板打开期间：岛保持当前状态，不收缩也不隐藏
 
         _idleTarget = expiryTarget;
         int gen = ++_idleGen;
@@ -663,12 +749,35 @@ public partial class HudWindow : Window, IIslandHost
     }
 
     /// <summary>
+    /// 占住一份空闲抑制（右键菜单 / 设置抽屉可叠加）：
+    /// 抑制期间取消计时且不再重排，岛在弹出面板后面保持当前状态。
+    /// </summary>
+    private void PushIdleSuppression()
+    {
+        _idleSuppress++;
+        CancelIdle();
+    }
+
+    /// <summary>释放一份空闲抑制；计数归零后按当前状态恢复计时。</summary>
+    private void PopIdleSuppression()
+    {
+        if (_idleSuppress > 0)
+            _idleSuppress--;
+
+        if (!IdleSuppressed)
+            ResumeIdleIfIdleState();
+    }
+
+    /// <summary>
     /// 指针离开岛后按当前状态重排空闲计时（已有计时在跑则不重复排）。
     /// 每个状态都有自己的生命周期超时，与该状态被何种方式唤醒无关：
     /// 展开态 → 等待态（皮肤自报时长）、等待态 → 收缩态、收缩态 → 隐藏态。
     /// </summary>
     private void ResumeIdleIfIdleState()
     {
+        if (IdleSuppressed)
+            return; // 菜单 / 设置抽屉打开期间不排任何超时
+
         if (_idleTimer is { IsEnabled: true })
             return;
 

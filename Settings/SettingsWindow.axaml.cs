@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -8,16 +12,52 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using EndfieldCharge.Animations;
 using EndfieldCharge.Services;
 using EndfieldCharge.Views;
+using DesignTokens = EndfieldCharge.Host.Island.Animation.DesignTokens;
 
 namespace EndfieldCharge.Settings;
 
+/// <summary>
+/// 设置抽屉：独立可激活的无边框圆角面板，锚定在灵动岛正下方滑出（视觉与动效同右键菜单）。
+/// 六个分段页签（复用原设置语义 + 新增「开发者」占位页），控件改动即时保存；
+/// 「收起」键 / Esc / 失焦三条路径都会再保存一次并播退场动画后关闭。
+/// </summary>
 public partial class SettingsWindow : Window
 {
+    // ---- 设计常量（DIP，取自 docs/designs/settings-all.json 的面板部分：整窗 750 − 岛体 74） ----
+    private const double DesignPanelHeight = 676d;
+    private const double PanelWidth = DesignTokens.PillWidth; // 面板可见宽 = 岛胶囊宽（同一 token，永不漂移）
+    private const double ShadowPad = 10d;      // ContentRoot 四周透明边距：给岛同款阴影留位，避免被窗口裁掉
+    private const double IslandGap = 8d;       // 面板上缘距岛下缘
+    private const double ScreenMargin = 12d;   // 面板底部至少保留的屏幕边距
+    private const double SlideOffset = 12d;    // 滑出定位移（从岛边缘方向）
+    private const double FocusGraceMs = 250d;  // 打开后忽略虚假失焦的宽限期
+
+    private static readonly TimeSpan OpenDuration = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan CloseDuration = TimeSpan.FromMilliseconds(150);
+
     private readonly HudWindow _hud;
+    private readonly List<(Border Button, TextBlock Text, Control Panel, string Key)> _tabs = new();
+    private readonly List<(Slider Slider, NumericUpDown Stepper)> _sliderValues = new();
+
+    private CancellationTokenSource? _animCts;
+    private bool _closing;
+    private bool _loading;
+    private bool _syncing;   // 滑块 ↔ 步进器同步中：阻止互相回灌
+    private bool _activatedOnce;
+    private bool _dialogOpen;
+    private DateTime _activatedAtUtc;
+
+    private double _globalScale = 0.8d;        // 全局缩放：打开时取自设置，改动即时重排
+    private PixelRect _islandRect;             // 岛胶囊（物理像素）——重排时复用
+    private Avalonia.Platform.Screen? _screen; // 目标显示器
+
+    /// <summary>抽屉真正关闭后触发（退场动画已播完），宿主据此恢复岛的空闲计时。</summary>
+    public event Action? DrawerClosed;
 
     public SettingsWindow(AppSettings settings, HudWindow hud, string initialTab = "General")
     {
@@ -34,6 +74,18 @@ public partial class SettingsWindow : Window
         catch { }
 
         Title = Localization.SettingsTitle;
+
+        // 页签注册（顺序 = 分段控件顺序：通用 / 动画 / 通知 / 插件 / 开发者 / 关于）
+        _tabs.Add((TabGeneralBtn, TabGeneralText, GeneralPanel, "General"));
+        _tabs.Add((TabAnimationBtn, TabAnimationText, AnimationPanel, "Animation"));
+        _tabs.Add((TabNotificationsBtn, TabNotificationsText, NotificationsPanel, "Notifications"));
+        _tabs.Add((TabPluginsBtn, TabPluginsText, PluginsPanel, "Plugins"));
+        _tabs.Add((TabDeveloperBtn, TabDeveloperText, DeveloperPanel, "Developer"));
+        _tabs.Add((TabAboutBtn, TabAboutText, AboutPanel, "About"));
+
+        foreach (var (button, _, _, key) in _tabs)
+            button.PointerPressed += (_, _) => SwitchTab(key);
+
         InitLanguageCombo();
         InitPositionCombo();
         InitPreviewModeCombo();
@@ -42,73 +94,128 @@ public partial class SettingsWindow : Window
         InitPluginPages();
 
         PopulateMonitors();
+        WireEvents();
+
+        // 加载期间控件会触发变更事件：只同步显示、不落盘
+        _loading = true;
         LoadSettings(settings);
+        _loading = false;
 
-        // Tab 切换
-        TabGeneralBtn.PointerPressed += (_, _) => SwitchTab(TabGeneralBtn, GeneralPanel);
-        TabAnimationBtn.PointerPressed += (_, _) => SwitchTab(TabAnimationBtn, AnimationPanel);
-        TabPluginsBtn.PointerPressed += (_, _) => SwitchTab(TabPluginsBtn, PluginsPanel);
-        TabNotificationsBtn.PointerPressed += (_, _) => SwitchTab(TabNotificationsBtn, NotificationsPanel);
-        TabAboutBtn.PointerPressed += (_, _) => SwitchTab(TabAboutBtn, AboutPanel);
+        _globalScale = Math.Clamp(settings.GlobalScale, 0.1d, 2d);
 
-        // 滑块值同步
+        RefreshValueTexts();
+        SwitchTab(initialTab);
+    }
+
+    // ---------------- 事件接线（控件改动即时保存） ----------------
+
+    private void WireEvents()
+    {
+        WireSlider(ScaleSlider, ScaleStepper, "{0:F2}");
+
+        // 全局缩放即时生效：整窗跟随缩放并重排锚点（内容 / 圆角 / 阴影一起缩）
         ScaleSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property == RangeBase.ValueProperty)
-                ScaleValue.Text = ScaleSlider.Value.ToString("F2");
+            {
+                _globalScale = Math.Clamp(ScaleSlider.Value, 0.1d, 2d);
+                ApplyLayout(initial: false);
+            }
         };
-        WaitingTimeoutSlider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                WaitingTimeoutValue.Text = $"{WaitingTimeoutSlider.Value:F1}s";
-        };
-        ContractedTimeoutSlider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                ContractedTimeoutValue.Text = $"{ContractedTimeoutSlider.Value:F1}s";
-        };
-        BounceSlider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                BounceValue.Text = BounceSlider.Value.ToString("F3");
-        };
-        RippleIntensitySlider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                RippleIntensityValue.Text = RippleIntensitySlider.Value.ToString("F2");
-        };
-        RippleSpreadSlider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                RippleSpreadValue.Text = RippleSpreadSlider.Value.ToString("F2");
-        };
-        LowBatterySlider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-                LowBatteryValue.Text = $"{LowBatterySlider.Value:F0}%";
-        };
+        WireSlider(WaitingTimeoutSlider, WaitingTimeoutStepper, "{0:F1}");
+        WireSlider(ContractedTimeoutSlider, ContractedTimeoutStepper, "{0:F1}");
+        WireSlider(BounceSlider, BounceStepper, "{0:F3}");
+        WireSlider(RippleIntensitySlider, RippleIntensityStepper, "{0:F2}");
+        WireSlider(RippleSpreadSlider, RippleSpreadStepper, "{0:F2}");
+        WireSlider(LowBatterySlider, LowBatteryStepper, "{0:F0}");
 
-        // 低电量开关联动
+        WindowTopmostSwitch.IsCheckedChanged += (_, _) => SaveInstant();
+        AutoStartSwitch.IsCheckedChanged += (_, _) => SaveInstant();
+        PowerSaverSwitch.IsCheckedChanged += (_, _) => SaveInstant();
+        FullChargeSwitch.IsCheckedChanged += (_, _) => SaveInstant();
         LowBatterySwitch.IsCheckedChanged += (_, _) =>
         {
             LowBatterySlider.IsEnabled = LowBatterySwitch.IsChecked == true;
+            SaveInstant();
         };
 
-        // 事件
+        WheelSwitchCombo.SelectionChanged += (_, _) => SaveInstant();
+        PositionCombo.SelectionChanged += (_, _) => SaveInstant();
+        MonitorCombo.SelectionChanged += (_, _) => SaveInstant();
+        LanguageCombo.SelectionChanged += (_, _) =>
+        {
+            SaveInstant();
+            ApplyLocalization(); // 语言即时生效：本窗文案随新语言刷新
+        };
+
+        // 底部动作行
         SaveBtn.Click += OnSave;
+        CollapseBtn.Click += (_, _) => RequestClose();
+
+        // 关闭路径：Esc / 失焦（见 OnWindowDeactivated）
+        KeyDown += OnWindowKeyDown;
+        Activated += (_, _) =>
+        {
+            _activatedOnce = true;
+            _activatedAtUtc = DateTime.UtcNow;
+        };
+        Deactivated += OnWindowDeactivated;
+
         CheckUpdateBtn.Click += OnCheckUpdate;
         PreviewPlayBtn.Click += OnPlayPreview;
         FontInstallBtn.Click += OnInstallFont;
+    }
 
-        // 默认 Tab
-        var (tab, panel) = initialTab switch
+    /// <summary>滑块 + 步进器双向绑定：两者编辑同一个值，任一改动即时保存。</summary>
+    private void WireSlider(Slider slider, NumericUpDown stepper, string format)
+    {
+        _sliderValues.Add((slider, stepper));
+
+        stepper.FormatString = format;
+        stepper.Value = ToDecimal(slider.Value);
+
+        slider.PropertyChanged += (_, e) =>
         {
-            "Animation" => (TabAnimationBtn, AnimationPanel),
-            "Notifications" => (TabNotificationsBtn, NotificationsPanel),
-            "About" => (TabAboutBtn, AboutPanel),
-            _ => (TabGeneralBtn, GeneralPanel),
+            if (e.Property != RangeBase.ValueProperty || _syncing)
+                return;
+
+            _syncing = true;
+            stepper.Value = ToDecimal(slider.Value);
+            _syncing = false;
+
+            SaveInstant();
         };
-        SwitchTab(tab, panel);
+
+        stepper.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != NumericUpDown.ValueProperty || _syncing || stepper.Value is not decimal v)
+                return;
+
+            _syncing = true;
+            slider.Value = Math.Clamp((double)v, slider.Minimum, slider.Maximum);
+            _syncing = false;
+
+            SaveInstant();
+        };
+    }
+
+    private static decimal ToDecimal(double value) => (decimal)Math.Round(value, 6);
+
+    /// <summary>加载设置后刷新一次数值文本（滑块默认值与设置值相同时不会触发 PropertyChanged）。</summary>
+    private void RefreshValueTexts()
+    {
+        foreach (var (slider, stepper) in _sliderValues)
+            stepper.Value = ToDecimal(slider.Value);
+    }
+
+    /// <summary>Esc = 收起（与「收起」键同一路径）。</summary>
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || e.Handled)
+            return;
+
+        e.Handled = true;
+        RequestClose();
     }
 
     // ---------------- 初始化 ComboBox 项 ----------------
@@ -150,49 +257,68 @@ public partial class SettingsWindow : Window
     private void ApplyLocalization()
     {
         WinTitle.Text = Localization.SettingsTitle;
+        WordmarkText.Text = Localization.Wordmark;
+
         TabGeneralText.Text = Localization.TabGeneral;
         TabAnimationText.Text = Localization.TabAnimation;
-        TabPluginsText.Text = Localization.Plugins;
         TabNotificationsText.Text = Localization.TabNotifications;
+        TabPluginsText.Text = Localization.Plugins;
+        TabDeveloperText.Text = Localization.TabDeveloper;
         TabAboutText.Text = Localization.TabAbout;
+
+        // 分段页签按设计 fs18；英文页签名长得多，收一号避免被段宽截断
+        double tabFontSize = Localization.IsChineseUi ? 18d : 13d;
+        foreach (var (_, text, _, _) in _tabs)
+            text.FontSize = tabFontSize;
+
+        SectionDisplayText.Text = Localization.SectionDisplay;
+        SectionPositionText.Text = Localization.SectionPosition;
+        SectionStartupText.Text = Localization.SectionStartup;
+        SectionAnimParams.Text = Localization.SectionAnimParams;
+        SectionPreview.Text = Localization.SectionPreview;
+        SectionAlertSettingsText.Text = Localization.SectionAlertSettings;
+        SectionPluginsText.Text = Localization.Plugins;
+        SectionDeveloperText.Text = Localization.TabDeveloper;
+        SectionAboutText.Text = Localization.TabAbout;
+
         LabelScale.Text = Localization.LabelScale;
         LabelTopmost.Text = Localization.Topmost;
         DescTopmostText.Text = Localization.DescTopmost;
-        LabelWaitingTimeout.Text = Localization.LabelWaitingTimeout;
-        LabelContractedTimeout.Text = Localization.LabelContractedTimeout;
+        LabelWheelSwitch.Text = Localization.LabelWheelSwitch;
+        DescWheelSwitchText.Text = Localization.DescWheelSwitch;
         LabelPosition.Text = Localization.LabelPosition;
         LabelMonitor.Text = Localization.LabelMonitor;
-        LabelWheelSwitch.Text = Localization.LabelWheelSwitch;
         LabelLanguage.Text = Localization.LabelLanguage;
         LabelAutoStart.Text = Localization.LabelAutoStart;
         DescAutoStartText.Text = Localization.DescAutoStart;
+
+        LabelWaitingTimeout.Text = Localization.LabelWaitingTimeout;
+        LabelContractedTimeout.Text = Localization.LabelContractedTimeout;
+        LabelBounce.Text = Localization.LabelBounce;
+        LabelRippleIntensity.Text = Localization.LabelRippleIntensity;
+        LabelRippleSpread.Text = Localization.LabelRippleSpread;
+        LabelPlayMode.Text = Localization.LabelPlayMode;
+
+        LabelPowerSaverNotify.Text = Localization.LabelPowerSaverNotify;
+        PowerSaverNotifyDesc.Text = Localization.PowerSaverNotifyDesc;
         LabelLowBatteryEnable.Text = Localization.LabelLowBatteryEnable;
         DescLowBatteryAlertText.Text = Localization.DescLowBatteryAlert;
         LabelLowBattery.Text = Localization.LabelLowBattery;
         LabelFullChargeEnable.Text = Localization.LabelFullChargeEnable;
         DescFullChargeAlertText.Text = Localization.DescFullChargeAlert;
-        LabelPowerSaverNotify.Text = Localization.LabelPowerSaverNotify;
-        PowerSaverNotifyDesc.Text = Localization.PowerSaverNotifyDesc;
+
         LabelVersion.Text = Localization.LabelVersion;
         LabelAuthor.Text = Localization.LabelAuthor;
-        SaveBtn.Content = Localization.BtnSave;
-        CheckUpdateBtn.Content = Localization.BtnCheckUpdate;
         AboutSubtitleText.Text = Localization.AboutSubtitle;
+        CheckUpdateBtn.Content = Localization.BtnCheckUpdate;
         FontSectionTitle.Text = Localization.FontSectionTitle;
         FontDescText.Text = Localization.FontDesc;
         FontInstallBtn.Content = Localization.BtnInstallFont;
-
-        SectionDisplayText.Text = Localization.SectionDisplay;
-        SectionPositionText.Text = Localization.SectionPosition;
-        SectionStartupText.Text = Localization.SectionStartup;
-        SectionAlertSettingsText.Text = Localization.SectionAlertSettings;
-        SectionAnimParams.Text = Localization.SectionAnimParams;
-        SectionPreview.Text = Localization.SectionPreview;
-        LabelBounce.Text = Localization.LabelBounce;
-        LabelRippleIntensity.Text = Localization.LabelRippleIntensity;
-        LabelRippleSpread.Text = Localization.LabelRippleSpread;
-        LabelPlayMode.Text = Localization.LabelPlayMode;
         PreviewPlayBtn.Content = Localization.BtnPlay;
+        DeveloperStubText.Text = Localization.DeveloperComingSoon;
+
+        ToolTip.SetTip(SaveBtn, Localization.BtnSave);
+        ToolTip.SetTip(CollapseBtn, Localization.BtnCollapse);
 
         if (LanguageCombo.Items.Count >= 3)
         {
@@ -333,21 +459,19 @@ public partial class SettingsWindow : Window
 
     // ---------------- Tab 切换 ----------------
 
-    private void SwitchTab(Border tabBtn, StackPanel panel)
+    private void SwitchTab(string key)
     {
-        TabGeneralBtn.Background = Brushes.Transparent;
-        TabAnimationBtn.Background = Brushes.Transparent;
-        TabPluginsBtn.Background = Brushes.Transparent;
-        TabNotificationsBtn.Background = Brushes.Transparent;
-        TabAboutBtn.Background = Brushes.Transparent;
+        if (!_tabs.Exists(t => string.Equals(t.Key, key, StringComparison.OrdinalIgnoreCase)))
+            key = "General";
 
-        tabBtn.Background = new SolidColorBrush(Color.Parse("#2A2A2D"));
+        foreach (var (button, _, panel, tabKey) in _tabs)
+        {
+            bool active = string.Equals(tabKey, key, StringComparison.OrdinalIgnoreCase);
+            button.Classes.Set("active", active);
+            panel.IsVisible = active;
+        }
 
-        GeneralPanel.IsVisible = panel == GeneralPanel;
-        AnimationPanel.IsVisible = panel == AnimationPanel;
-        PluginsPanel.IsVisible = panel == PluginsPanel;
-        NotificationsPanel.IsVisible = panel == NotificationsPanel;
-        AboutPanel.IsVisible = panel == AboutPanel;
+        ContentScroll.Offset = new Vector(0, 0);
     }
 
     // ---------------- 动画预览 ----------------
@@ -397,7 +521,19 @@ public partial class SettingsWindow : Window
 
     // ---------------- 保存 ----------------
 
-    private void OnSave(object? sender, RoutedEventArgs e)
+    /// <summary>控件改动即时保存：只落盘 + 生效，不弹「已保存」提示。</summary>
+    private void SaveInstant()
+    {
+        if (_loading)
+            return;
+
+        Save(showToast: false);
+    }
+
+    private void OnSave(object? sender, RoutedEventArgs e) => Save(showToast: true);
+
+    /// <summary>收集当前控件值 → 持久化 → 广播生效；showToast 仅「保存」键需要。</summary>
+    private void Save(bool showToast)
     {
         var settings = CollectSettings();
         SettingsManager.Save(settings);
@@ -411,11 +547,14 @@ public partial class SettingsWindow : Window
         if (Application.Current is App app)
             app.OnSettingsChanged(settings);
 
+        if (!showToast)
+            return;
+
         SavedHint.Text = Localization.SavedToast;
         SavedHint.Opacity = 1;
         Dispatcher.UIThread.Post(async () =>
         {
-            await System.Threading.Tasks.Task.Delay(2000);
+            await Task.Delay(2000);
             SavedHint.Opacity = 0;
         });
     }
@@ -432,11 +571,21 @@ public partial class SettingsWindow : Window
             var (hasUpdate, version, url) = await Services.UpdateChecker.CheckAsync();
             if (hasUpdate && url is not null)
             {
-                var result = await MessageBox.Show(
-                    this,
-                    Localization.UpdateMsg(version ?? "?"),
-                    Localization.UpdateTitle,
-                    MessageBoxButton.OkCancel);
+                // 模态对话框会让本窗失焦：期间不能把失焦当成「点了别处」而收起抽屉
+                _dialogOpen = true;
+                MessageBoxResult result;
+                try
+                {
+                    result = await MessageBox.Show(
+                        this,
+                        Localization.UpdateMsg(version ?? "?"),
+                        Localization.UpdateTitle,
+                        MessageBoxButton.OkCancel);
+                }
+                finally
+                {
+                    _dialogOpen = false;
+                }
 
                 if (result == MessageBoxResult.Ok)
                     Platform.Start(url);
@@ -480,6 +629,206 @@ public partial class SettingsWindow : Window
         {
             FontInstallBtn.IsEnabled = true;
         }
+    }
+
+    // ---------------- 抽屉定位（锚定岛下缘） ----------------
+
+    /// <summary>
+    /// 在灵动岛正下方显示抽屉：水平居中于岛，夹紧到目标显示器工作区；
+    /// 整窗按全局缩放渲染（<see cref="ScaleHost"/>），高度取 min(设计高, 工作区可用高)，超出由滚动条承担。
+    /// </summary>
+    public void ShowBelowIsland(PixelRect islandRect, Avalonia.Platform.Screen screen)
+    {
+        _islandRect = islandRect;
+        _screen = screen;
+
+        ApplyLayout(initial: true);
+        Show();
+    }
+
+    /// <summary>按全局缩放 + 屏幕工作区重算窗口尺寸与锚点（面板上缘贴岛下缘 + 8，水平居中）。</summary>
+    private void ApplyLayout(bool initial)
+    {
+        if (_screen is null)
+            return;
+
+        double scaling = _screen.Scaling > 0 ? _screen.Scaling : 1d;
+        var area = _screen.WorkingArea;
+        double dip = Math.Clamp(_globalScale, 0.1d, 2d);
+
+        // 关键：缩放只做一次。ScaleRoot 以「设计 DIP」布局、按 dip 渲染；窗口尺寸 = 设计 × dip。
+        // 若窗口也按 dip 拉大再叠加渲染缩放，就会缩放两次（内容既不等于岛宽，也不同步）。
+        if (ScaleRoot.RenderTransform is ScaleTransform scale)
+        {
+            scale.ScaleX = dip;
+            scale.ScaleY = dip;
+        }
+        else
+        {
+            ScaleRoot.RenderTransform = new ScaleTransform(dip, dip);
+        }
+
+        double designW = PanelWidth + (2 * ShadowPad);
+        ScaleRoot.Width = designW;
+        Width = designW * dip;
+
+        int padPx = (int)Math.Round(ShadowPad * dip * scaling);
+        int winW = (int)Math.Round(designW * dip * scaling);
+        int gapPx = (int)Math.Round(IslandGap * dip * scaling);
+        int marginPx = (int)Math.Round(ScreenMargin * scaling);
+
+        // 水平居中于岛；上缘 = 岛下缘 + 8 再上移一个阴影边距（让「可见面板」而非窗口贴岛）
+        int x = _islandRect.X + ((_islandRect.Width - winW) / 2);
+        int y = _islandRect.Bottom + gapPx - padPx;
+
+        int available = Math.Max(0, area.Bottom - y - marginPx);
+        int designH = (int)Math.Round((DesignPanelHeight + (2 * ShadowPad)) * dip * scaling);
+        int winH = Math.Min(designH, available);
+        Height = winH / scaling;
+        ScaleRoot.Height = Height / dip;   // 设计 DIP：渲染缩放后正好与窗口等高
+
+        x = Math.Clamp(x, area.X, Math.Max(area.X, area.Right - winW));
+        y = Math.Clamp(y, area.Y, Math.Max(area.Y, area.Bottom - winH));
+
+        Position = new PixelPoint(x, y);
+
+        if (initial)
+            Services.Logger.Info($"SettingsDrawer: island={_islandRect} wa={area} pos=({x},{y}) size={winW}×{winH} scale={dip:F2}");
+    }
+
+    // ---------------- 关闭（收起键 / Esc / 失焦共用） ----------------
+
+    /// <summary>统一关闭入口：先保存一次，再播退场动画后 Close。</summary>
+    public void RequestClose()
+    {
+        if (_closing)
+            return;
+
+        _closing = true;
+
+        // 任何关闭路径都再存一次（语言等刚改、滑块可能还在拖动）
+        Save(showToast: false);
+
+        _animCts?.Cancel();
+        _animCts = new CancellationTokenSource();
+        _ = CloseAnimatedAsync(_animCts.Token);
+    }
+
+    private async Task CloseAnimatedAsync(CancellationToken token)
+    {
+        try
+        {
+            await BuildCloseAnimation().RunAsync(ContentRoot, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (IsVisible)
+            Close();
+    }
+
+    /// <summary>开场：从岛边缘（上）滑出 + 淡入，200ms KeySpline(0,1,1,1)。</summary>
+    private Animation BuildOpenAnimation() => new()
+    {
+        Duration = OpenDuration,
+        FillMode = FillMode.Forward,
+        Children =
+        {
+            new KeyFrame
+            {
+                Cue = new Cue(0d),
+                Setters =
+                {
+                    new Setter(TranslateTransform.YProperty, -SlideOffset),
+                    new Setter(OpacityProperty, 0d),
+                },
+            },
+            new KeyFrame
+            {
+                Cue = new Cue(1d),
+                KeySpline = new KeySpline(0d, 1d, 1d, 1d),
+                Setters =
+                {
+                    new Setter(TranslateTransform.YProperty, 0d),
+                    new Setter(OpacityProperty, 1d),
+                },
+            },
+        },
+    };
+
+    /// <summary>退场：缩回岛边缘 + 淡出，150ms KeySpline(1,0,1,1)。</summary>
+    private Animation BuildCloseAnimation() => new()
+    {
+        Duration = CloseDuration,
+        FillMode = FillMode.Forward,
+        Children =
+        {
+            new KeyFrame
+            {
+                Cue = new Cue(0d),
+                Setters =
+                {
+                    new Setter(TranslateTransform.YProperty, 0d),
+                    new Setter(OpacityProperty, 1d),
+                },
+            },
+            new KeyFrame
+            {
+                Cue = new Cue(1d),
+                KeySpline = new KeySpline(1d, 0d, 1d, 1d),
+                Setters =
+                {
+                    new Setter(TranslateTransform.YProperty, -SlideOffset),
+                    new Setter(OpacityProperty, 0d),
+                },
+            },
+        },
+    };
+
+    // ---------------- 窗口生命周期 ----------------
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+
+        _activatedAtUtc = DateTime.UtcNow;
+        _animCts = new CancellationTokenSource();
+        _ = BuildOpenAnimation().RunAsync(ContentRoot, _animCts.Token);
+    }
+
+    /// <summary>
+    /// 失焦即收起（与右键菜单不同：抽屉要接收键盘输入，必须可激活）。
+    /// 打开瞬间会有一次虚假 Deactivated：宽限期内或从未激活过都忽略。
+    /// </summary>
+    private void OnWindowDeactivated(object? sender, EventArgs e)
+    {
+        if (_closing || !_activatedOnce || _dialogOpen)
+            return;
+
+        if ((DateTime.UtcNow - _activatedAtUtc).TotalMilliseconds < FocusGraceMs)
+            return;
+
+        // 下拉弹窗可能瞬时改变激活态：下一拍再确认，真的失焦才收
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_closing && IsVisible && !IsActive)
+                RequestClose();
+        }, DispatcherPriority.Background);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _animCts?.Cancel();
+
+        // 兜底：未走 RequestClose 的关闭路径（应用退出等）也要保存一次
+        if (!_closing)
+            Save(showToast: false);
+
+        DrawerClosed?.Invoke();
+
+        base.OnClosed(e);
     }
 }
 
