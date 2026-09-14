@@ -48,6 +48,7 @@ public static class Localization
     public static string MediaPrev => IsChinese ? "上一曲" : "Previous Track";
     public static string MediaNext => IsChinese ? "下一曲" : "Next Track";
     public static string MediaPause => IsChinese ? "暂停" : "Pause";
+    public static string MediaPlay => IsChinese ? "播放" : "Play";
     public static string MediaUnavailable => IsChinese ? "未连接 SMTC" : "SMTC not connected";
     public static string DescTopmost => IsChinese ? "HUD 始终显示在其他窗口上方" : "Keep HUD above other windows";
 
@@ -57,15 +58,46 @@ public static class Localization
     public static string TabNotifications => IsChinese ? "通知" : "Notifications";
     public static string TabAbout => IsChinese ? "关于" : "About";
     public static string LabelScale => IsChinese ? "全局缩放" : "Global Scale";
+
+    // ---- 免打扰（整岛生效，右键菜单「免打扰 ▸」） ----
+    public static string Dnd => IsChinese ? "免打扰" : "Do Not Disturb";
+    public static string DndOff => IsChinese ? "取消免打扰" : "Turn Off";
+    public static string Dnd5Min => IsChinese ? "5 分钟" : "5 minutes";
+    public static string Dnd15Min => IsChinese ? "15 分钟" : "15 minutes";
+    public static string Dnd1Hour => IsChinese ? "1 小时" : "1 hour";
+    public static string Dnd3Hour => IsChinese ? "3 小时" : "3 hours";
+    public static string DndPause => IsChinese ? "暂停（直到手动取消）" : "Pause (until turned off)";
+    public static string DndPaused => IsChinese ? "已暂停" : "paused";
+    public static string DndRemainingMinutes(int minutes) => IsChinese ? $"剩余 {minutes} 分钟" : $"{minutes} min left";
+    public static string DndRemainingHours(int hours, int minutes) =>
+        IsChinese ? $"剩余 {hours} 小时 {minutes} 分" : $"{hours} h {minutes} min left";
+
     // ---- 音乐插件设置（面板由插件自绘，字符串仍沿用同一张表） ----
     public static string MusicSectionTitle => IsChinese ? "音乐岛" : "Music Island";
     public static string LabelExpandedTimeout => IsChinese ? "展开态超时（秒，最低 3）" : "Expanded Timeout (s, min 3)";
     public static string LabelShowTitleWhenNoLyric => IsChinese ? "无歌词时显示歌名" : "Show Title When No Lyrics";
     public static string LabelShowVisualizer => IsChinese ? "显示可视化器" : "Show Visualizer";
     public static string LabelLyricSource => IsChinese ? "歌词来源" : "Lyrics Source";
-    public static string LyricSourceSmtc => IsChinese ? "跟随系统媒体会话（SMTC）" : "System Media Session (SMTC)";
-    public static string LyricSourceLocal => IsChinese ? "本地歌词文件" : "Local Lyrics File";
-    public static string LyricSourceLrclib => IsChinese ? "LRCLIB 在线歌词" : "LRCLIB (online)";
+    public static string LyricSourceMerge =>
+        IsChinese ? "并行择优（三源同时检索，取最匹配）" : "Best match (all sources in parallel)";
+    public static string LyricSourcePreferLrclib => IsChinese ? "偏好 LRCLIB" : "Prefer LRCLIB";
+    public static string LyricSourcePreferNetease => IsChinese ? "偏好网易云" : "Prefer NetEase";
+    public static string LyricSourcePreferLocal => IsChinese ? "偏好本地" : "Prefer Local";
+    public static string LyricSourceLrclib => IsChinese ? "仅 LRCLIB" : "LRCLIB only";
+    public static string LyricSourceNetease => IsChinese ? "仅网易云" : "NetEase only";
+    public static string LyricSourceLocal => IsChinese ? "仅本地" : "Local only";
+    public static string LyricSourceOff => IsChinese ? "关闭歌词" : "Lyrics Off";
+    public static string LabelMusicSourceWhitelist => IsChinese ? "音乐来源白名单" : "Music Source Whitelist";
+
+    public static string HintMusicSourceWhitelist => IsChinese
+        ? "留空 = 不采集频谱、也不自动弹岛"
+        : "Empty = no capture, no auto-appear";
+    public static string WhitelistAllowed => IsChinese ? "已允许" : "Allowed";
+    public static string WhitelistEmpty => IsChinese ? "（空）" : "(empty)";
+    public static string WhitelistPlaceholder => IsChinese ? "进程名 / AUMID" : "Process / AUMID";
+    public static string WhitelistAdd => IsChinese ? "添加" : "Add";
+    public static string WhitelistKnown => IsChinese ? "见过的来源" : "Seen sources";
+    public static string WhitelistKnownEmpty => IsChinese ? "（暂无，播放一次即出现）" : "(none yet)";
     public static string NoPluginSettings => IsChinese ? "暂无插件提供设置" : "No plugin settings available";
     public static string LabelWaitingTimeout => IsChinese ? "等待态超时（秒）" : "Waiting Timeout (s)";
     public static string LabelContractedTimeout => IsChinese ? "收缩态超时（秒）" : "Contracted Timeout (s)";
