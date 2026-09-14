@@ -22,8 +22,8 @@
 | 电量显示 | 剩余 / 满充容量（mWh，整数）与百分比，读取 `CallNtPowerInformation`，WMI 兜底 |
 | 电源监听 | `RegisterPowerSettingNotification` 订阅 GUID_ACDC_POWER_SOURCE，2s 轮询兜底，400ms 双向去抖（过滤 Windows 满电瞬时抖动） |
 | 插件驱动架构 | `src/EndfieldCharge.Contracts` 定义插件契约（`IPlugin` / `IPluginContext` / `IIslandContentProvider` / `IContextMenuContributor`），`src/EndfieldCharge.Contracts.Avalonia` 定义皮肤契约（`IIslandSkin` / `IIslandHost` / `IIslandExpandToggle`）；`Host/Plugins/PluginLoader` 从 exe 旁 `plugins/*.dll` 加载外部插件（每插件独立 ALC，契约共享默认上下文） |
-| 音乐岛（外部插件） | `plugins/EndfieldCharge.Plugin.Music`：SMTC **事件驱动**（`SessionsChanged` / `CurrentSessionChanged` + 会话的媒体属性 / 播放态 / 时间线事件），不轮询；无会话显示空态、连接失败降级为「未连接 SMTC」并慢速自愈；歌词走**多源并行择优**（LRCLIB + 网易云同时探测，汇总取最相似的一条，并丢弃「纯音乐，请欣赏」这类占位），长句自动跑马灯；音乐开始播放自动以**展开态**弹出（左键点岛即隐藏；**受「音乐来源白名单」约束**，名单为空时不会自动弹岛），岛内按钮可播放/暂停与切歌 |
-| 插件设置 | 设置窗口「插件」页由插件自绘（`IPluginSettingsPage` 契约）。音乐插件提供：展开态超时（最低 3s）、无歌词时显示歌名、显示可视化器、歌词来源（**并行择优**：三源同时检索取最匹配；偏好 LRCLIB / 偏好网易云 / 偏好本地：串行回退；仅 LRCLIB / 仅网易云 / 仅本地；关闭歌词）、音乐来源白名单（按 AUMID，可手动添加或点选「见过的来源」，列表每秒刷新；**默认空 ⇒ 不采集频谱也不自动弹岛**）；设置持久化在 `%APPDATA%\EndfieldCharge\plugins\<id>\settings.json`，改动即生效 |
+| 音乐岛（外部插件） | `plugins/EndfieldCharge.Plugin.Music`：SMTC **事件驱动**（`SessionsChanged` / `CurrentSessionChanged` + 会话的媒体属性 / 播放态 / 时间线事件），不轮询；无会话显示空态、连接失败降级为「未连接 SMTC」并慢速自愈；歌词走**多源并行择优**（LRCLIB + 网易云同时探测，汇总取最相似的一条，并丢弃「纯音乐，请欣赏」这类占位），长句自动跑马灯；音乐开始播放自动以**展开态**弹出（左键点岛即隐藏；**受「音乐来源白名单」硬约束**——只有名单内的来源才会被显示 / 被岛内按钮控制 / 触发自动弹岛，名单为空时岛显示空态且按钮无效），岛内按钮可播放/暂停与切歌 |
+| 插件设置 | 设置窗口「插件」页由插件自绘（`IPluginSettingsPage` 契约）。音乐插件提供：展开态超时（最低 3s）、无歌词时显示歌名、显示可视化器、可视化强度（0.5–3.0×，以 0.5 为轴做对比度扩展，越大起伏越明显）、采样柱数（24–96，展开态真实频谱的频段数 = 绘制柱数）、歌词来源（**并行择优**：三源同时检索取最匹配；偏好 LRCLIB / 偏好网易云 / 偏好本地：串行回退；仅 LRCLIB / 仅网易云 / 仅本地；关闭歌词）、音乐来源白名单（按 AUMID，可手动添加或点选「见过的来源」，列表每秒刷新；**硬门禁**：只有名单内的来源才会被显示、才会被岛内按钮控制、才会采集频谱并触发自动弹岛——名单外的来源（含浏览器）一律不显示、不控制，**默认空 ⇒ 音乐岛显示空态、按钮无效**）；设置持久化在 `%APPDATA%\EndfieldCharge\plugins\<id>\settings.json`，改动即生效 |
 | 滚轮切换岛 | 按「翻页」语义：每滚一档 = 翻一页 = 切一个岛（上滚上一页 / 下滚下一页），不做手势判定；边界行为可在设置里配置（循环 / 到边界即停 / 禁用）；皮肤把 `ParticipatesInWheelSwitch` 覆写为 `false` 即被排除出轮转 |
 | 电池元插件 | 电池充电检测实现为不可卸载的元插件（`CanUnload=false`），同时提供岛样式（`IIslandSkin`）与电池数据（`IIslandContentProvider`）；其它插件只提供数据即可借用该样式在岛上展示内容，无需接触 Avalonia |
 | 四态灵动岛 | 响应态（完整「超充模式」入场动画，固定时长）→ 等待态（电量胶囊）→ 收缩态（宽度约 200，仅电池环 + 百分比）→ 隐藏态；鼠标移到屏幕顶缘细条停留约 300ms 展开回等待态 |
@@ -34,6 +34,7 @@
 | 岛右键菜单 | 自绘菜单（illogical-impulse 风格：`#201F20`、圆角 12、1px 描边、阴影），窗口 `WS_EX_NOACTIVATE` 永不激活，配合 `WH_MOUSE_LL` 全局鼠标钩子检测外部点击关闭；菜单项 = 插件注入项 + 宿主固定项（窗口置顶 / 免打扰▸ / 插件▸ / 设置 / 退出）；**任意带子项的条目**都支持悬停展开子菜单 |
 | 插件菜单注入 | 插件实现 `IContextMenuContributor` 即可向右键菜单注入条目，按 Target → Section → Priority 聚合；音乐插件即以此提供「上一曲 / 下一曲 / 暂停·播放」 |
 | 点击穿透 | 窗口整窗 `WS_EX_TRANSPARENT` + 30ms 光标轮询；光标在岛区域时临时取消穿透使其可交互，其余区域点击穿透到桌面 / 其它窗口 |
+| 永不夺焦 / 不进 Alt+Tab | 岛窗口带 `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`：点击岛（含岛内按钮）**不会把焦点从你当前的应用抢走**（像 360 加速球），也不出现在任务栏 / Alt+Tab。配合 `ShowActivated=false`，显示时也不激活；`ShowInTaskbar=false` 让 Avalonia 把窗口挂在隐藏的属主窗口下，从而天然排除出 Alt+Tab。右键菜单窗口同样 `WS_EX_NOACTIVATE` |
 | 状态生命周期超时 | **每个状态都有自己的超时，与唤醒方式无关**（托盘 / 插拔电 / 滚轮翻页 / 内容主动展开都一样）：展开态 → 等待态（**最低 3s**，时长由皮肤自报，音乐插件把它做成自己的设置）、等待态 → 收缩态、收缩态 → 隐藏态（后两者在设置→动画页配置）；鼠标悬停在岛区域内会重置计时 |
 | 窗口置顶 | 设置窗口与岛右键菜单均可切换窗口置顶 |
 | 动画微调 | 设置窗口「动画」页实时预览并微调时长 / 回弹 / 波纹参数，保存即生效并持久化 |
@@ -159,7 +160,7 @@ EndfieldCharge/
 │  ├─ SettingsManager.cs         # 设置加载与持久化
 │  └─ SettingsWindow.axaml(.cs)  # 设置窗口（通用 / 动画 / 通知 / 关于）
 ├─ Views/
-│  ├─ HudWindow.axaml(.cs)               # HUD 窗口外壳（透明 / 点击穿透 / 定位 / 状态机驱动 / 皮肤轮转）
+│  ├─ HudWindow.axaml(.cs)               # HUD 窗口外壳（透明 / 点击穿透 / 永不激活 / 定位 / 状态机驱动 / 皮肤轮转）
 │  ├─ IslandContextMenuWindow.axaml(.cs) # 岛自绘右键菜单（非激活 + 鼠标钩子）
 │  └─ TrayMenuWindow.axaml(.cs)          # 自定义托盘菜单窗口（左键改为显示岛，保留备用）
 ├─ Styles/HudTheme.axaml         # 颜色主题（图标几何已移入 Contracts.Avalonia）
