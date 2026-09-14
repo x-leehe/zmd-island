@@ -23,6 +23,18 @@ public static class SpectrumCurve
     }
 
     /// <summary>
+    /// 起伏强度：以 <c>0.5</c> 为轴做**对比度扩展** —— <paramref name="intensity"/> 越大于 1，
+    /// 高峰越高、低谷越低（"起伏"越明显）；等于 1 时原样返回；小于 1 把起伏压平。
+    /// 结果钳制在 0..1。
+    /// </summary>
+    public static double Amplify(double value, double intensity)
+    {
+        value = Math.Clamp(value, 0d, 1d);
+        intensity = Math.Clamp(intensity, 0d, 4d);
+        return Math.Clamp(((value - 0.5d) * intensity) + 0.5d, 0d, 1d);
+    }
+
+    /// <summary>
     /// [1,2,1] 邻域平滑（原地、可多轮；两端取镜像；权重和为 1 所以不会整体压低调子）。
     /// 频段值是**段内平均**，相邻段之间仍有跳变 —— 这一步消掉的就是它。
     /// 轮数越多越平：1 轮留着细节，3 轮以上会把局部峰谷也抹掉（成一条不动的带子）。

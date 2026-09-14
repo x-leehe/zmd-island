@@ -49,7 +49,10 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
     private MusicFrame _frame = MusicFrame.Empty;
 
     /// <summary>频谱：分析器是纯计算；采集器**只在白名单放行时才创建**。</summary>
-    private readonly SpectrumAnalyzer _analyzer = new();
+    private const int MinVisualizerBars = 24;
+    private const int MaxVisualizerBars = 96;
+
+    private SpectrumAnalyzer _analyzer = new();
     private readonly float[] _sampleBuffer = new float[1024];
     private readonly DispatcherTimer _spectrumTimer;
     private AudioLoopbackCapture? _capture;
@@ -382,10 +385,20 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
         }
 
         _lyrics.Use(_settings.LyricSource);
-        _view.ApplyPreferences(_settings.ShowTitleWhenNoLyric, _settings.ShowVisualizer);
+        ApplyAnalyzerBands(_settings.VisualizerBars);
+        _view.ApplyPreferences(_settings.ShowTitleWhenNoLyric, _settings.ShowVisualizer, _settings.VisualizerIntensity, _settings.VisualizerBars);
         Logger.Info($"Music: 设置已加载（展开态超时 {ExpandedTimeoutSeconds:F1}s（下限 3s） / " +
                     $"无歌词显示歌名 {OnOff(_settings.ShowTitleWhenNoLyric)} / " +
-                    $"可视化器 {OnOff(_settings.ShowVisualizer)} / 歌词来源 {_lyrics.Source}）");
+                    $"可视化器 {OnOff(_settings.ShowVisualizer)}（强度 {_settings.VisualizerIntensity:F1}× · 柱数 {_settings.VisualizerBars}） / " +
+                    $"歌词来源 {_lyrics.Source}）");
+    }
+
+    /// <summary>按设置重建频谱分析器（柱数变了才重建；重建会重置平滑，属设置改动的预期结果）。</summary>
+    private void ApplyAnalyzerBands(int bars)
+    {
+        bars = Math.Clamp(bars, MinVisualizerBars, MaxVisualizerBars);
+        if (_analyzer.Bands != bars)
+            _analyzer = new SpectrumAnalyzer(bands: bars);
     }
 
     private static string OnOff(bool value) => value ? "开" : "关";
@@ -497,7 +510,8 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
         _settings = settings;
         MusicSettingsStore.Save(_dataDirectory, settings);
         _lyrics.Use(settings.LyricSource);                  // 换来源 → 丢掉旧歌词，等下一次换曲重取
-        _view.ApplyPreferences(settings.ShowTitleWhenNoLyric, settings.ShowVisualizer);
+        ApplyAnalyzerBands(settings.VisualizerBars);
+        _view.ApplyPreferences(settings.ShowTitleWhenNoLyric, settings.ShowVisualizer, settings.VisualizerIntensity, settings.VisualizerBars);
         RefreshLyric();                                     // ApplyPreferences 会重绑帧，歌词要再写一次
     }
 }

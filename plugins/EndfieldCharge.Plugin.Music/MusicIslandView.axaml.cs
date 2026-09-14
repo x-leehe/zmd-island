@@ -72,6 +72,8 @@ public partial class MusicIslandView : UserControl
     private bool _revealPending;
     private bool _showTitleWhenNoLyric = true;
     private bool _showVisualizer = true;
+    private double _visualizerIntensity = 1.5d;
+    private int _visualizerBars = 64;
 
     /// <summary>跑马灯动画的取消源（按歌词位分别记）：换句时先取消上一段，免得两段动画抢同一个 X。</summary>
     private readonly Dictionary<TextBlock, CancellationTokenSource> _marqueeTokens = new();
@@ -178,7 +180,7 @@ public partial class MusicIslandView : UserControl
     public void UpdateSpectrum(IReadOnlyList<float>? spectrum)
     {
         SpectrumPath.Fill = BuildSpectrumBrush();
-        SpectrumPath.Data = SmoothSpectrum(spectrum, 40);
+        SpectrumPath.Data = SmoothSpectrum(Amplify(spectrum), _visualizerBars);
     }
 
     /// <summary>
@@ -187,9 +189,22 @@ public partial class MusicIslandView : UserControl
     /// </summary>
     public void UpdatePlayIndicator(bool playing, double phase)
     {
-        float[] levels = PlayIndicator.Build(playing, phase);
+        float[] levels = Amplify(PlayIndicator.Build(playing, phase));
         ApplyBars(WaitBar1, WaitBar2, WaitBar3, levels, 24d);
         ApplyBars(ContractBar1, ContractBar2, ContractBar3, levels, 24d);
+    }
+
+    /// <summary>按设置的「起伏强度」对可视化数据做对比度扩展（以 0.5 为轴）。</summary>
+    private float[] Amplify(IReadOnlyList<float>? data)
+    {
+        if (data is not { Count: > 0 })
+            return Array.Empty<float>();
+
+        var result = new float[data.Count];
+        for (int i = 0; i < data.Count; i++)
+            result[i] = (float)SpectrumCurve.Amplify(data[i], _visualizerIntensity);
+
+        return result;
     }
 
     /// <summary>
@@ -356,10 +371,12 @@ public partial class MusicIslandView : UserControl
     }
 
     /// <summary>应用插件设置里的视觉偏好（宿主设置窗口「插件 → 音乐」改动后立即回流）。</summary>
-    public void ApplyPreferences(bool showTitleWhenNoLyric, bool showVisualizer)
+    public void ApplyPreferences(bool showTitleWhenNoLyric, bool showVisualizer, double visualizerIntensity, int visualizerBars)
     {
         _showTitleWhenNoLyric = showTitleWhenNoLyric;
         _showVisualizer = showVisualizer;
+        _visualizerIntensity = visualizerIntensity;
+        _visualizerBars = visualizerBars;
 
         SpectrumPath.IsVisible = showVisualizer;
         foreach (var bar in new[] { WaitBar1, WaitBar2, WaitBar3, ContractBar1, ContractBar2, ContractBar3 })

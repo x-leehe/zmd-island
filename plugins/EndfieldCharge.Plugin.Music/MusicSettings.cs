@@ -19,6 +19,17 @@ public sealed record MusicSettings
     public bool ShowVisualizer { get; init; } = true;
 
     /// <summary>
+    /// 可视化器起伏强度：以 0.5 为轴做对比度扩展。<c>1.0</c> = 原始曲线；
+    /// 越大高峰越高、低谷越低（起伏越明显），范围 0.5–3.0。
+    /// </summary>
+    public double VisualizerIntensity { get; init; } = 1.5;
+
+    /// <summary>
+    /// 展开态真实频谱的采样柱数（频段数 = 绘制点数）。越多越细腻，范围 24–96。
+    /// </summary>
+    public int VisualizerBars { get; init; } = 64;
+
+    /// <summary>
     /// 歌词来源：<c>merge</c>（默认：三源并行择优） / <c>prefer-lrclib</c> / <c>prefer-netease</c> /
     /// <c>prefer-local</c>（这三种 = 串行回退，排第一的优先） / <c>lrclib</c> / <c>netease</c> / <c>local</c>（仅这一源） /
     /// <c>off</c>（关闭）。旧值 <c>auto</c> / <c>smtc</c> 由 <see cref="LyricsService"/> 迁移为 <c>merge</c>。

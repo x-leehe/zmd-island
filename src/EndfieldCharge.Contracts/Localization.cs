@@ -87,6 +87,8 @@ public static class Localization
     public static string LabelExpandedTimeout => IsChinese ? "展开态超时（秒，最低 3）" : "Expanded Timeout (s, min 3)";
     public static string LabelShowTitleWhenNoLyric => IsChinese ? "无歌词时显示歌名" : "Show Title When No Lyrics";
     public static string LabelShowVisualizer => IsChinese ? "显示可视化器" : "Show Visualizer";
+    public static string LabelVisualizerIntensity => IsChinese ? "可视化强度（起伏幅度）" : "Visualizer Intensity";
+    public static string LabelVisualizerBars => IsChinese ? "采样柱数（展开态频谱）" : "Spectrum Bars";
     public static string LabelLyricSource => IsChinese ? "歌词来源" : "Lyrics Source";
     public static string LyricSourceMerge =>
         IsChinese ? "并行择优（三源同时检索，取最匹配）" : "Best match (all sources in parallel)";

@@ -26,6 +26,9 @@ public partial class MusicSettingsView : UserControl
     /// <summary>上一次渲染的「见过的来源」签名（没变就不重建行，免得打断悬停 / 点击）。</summary>
     private string _knownSignature = string.Empty;
 
+    /// <summary>滑块 ↔ 步进器同步中：阻止互相回灌。</summary>
+    private bool _syncing;
+
     /// <param name="read">读取插件当前设置。</param>
     /// <param name="write">写回设置（插件据此持久化并立即生效）。</param>
     /// <param name="knownSources">插件见过的来源（AUMID），用于列出可勾选的白名单候选。</param>
@@ -46,8 +49,13 @@ public partial class MusicSettingsView : UserControl
         ExpandedTimeoutSlider.Value = s.ExpandedTimeoutSeconds;
         ShowTitleSwitch.IsChecked = s.ShowTitleWhenNoLyric;
         VisualizerSwitch.IsChecked = s.ShowVisualizer;
+        VisualizerIntensitySlider.Value = s.VisualizerIntensity;
+        VisualizerBarsSlider.Value = s.VisualizerBars;
         SelectLyricSource(s.LyricSource);
-        UpdateExpandedText();
+
+        WirePair(ExpandedTimeoutSlider, ExpandedTimeoutStepper, "{0:F1}");
+        WirePair(VisualizerIntensitySlider, VisualizerIntensityStepper, "{0:F2}");
+        WirePair(VisualizerBarsSlider, VisualizerBarsStepper, "{0:F0}");
 
         WhitelistInput.Watermark = Localization.WhitelistPlaceholder;
         WhitelistAddButton.Content = Localization.WhitelistAdd;
@@ -61,14 +69,6 @@ public partial class MusicSettingsView : UserControl
         AttachedToVisualTree += (_, _) => _knownRefresh.Start();
         DetachedFromVisualTree += (_, _) => _knownRefresh.Stop();
 
-        ExpandedTimeoutSlider.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == RangeBase.ValueProperty)
-            {
-                UpdateExpandedText();
-                Save();
-            }
-        };
         ShowTitleSwitch.IsCheckedChanged += (_, _) => Save();
         VisualizerSwitch.IsCheckedChanged += (_, _) => Save();
         LyricSourceCombo.SelectionChanged += (_, _) => Save();
@@ -201,14 +201,14 @@ public partial class MusicSettingsView : UserControl
         grid.Children.Add(new TextBlock
         {
             Text = id,
-            FontSize = 12,
+            FontSize = 16,
             VerticalAlignment = VerticalAlignment.Center,
         });
 
         var remove = new Button
         {
             Content = "✕",
-            FontSize = 11,
+            FontSize = 14,
             Padding = new Thickness(6, 0),
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
@@ -218,7 +218,7 @@ public partial class MusicSettingsView : UserControl
         Grid.SetColumn(remove, 1);
         grid.Children.Add(remove);
 
-        return Row(grid, "#2E2E30");
+        return Row(grid, "#3A383A");
     }
 
     /// <summary>一行「见过的来源」：点一下即加入名单（省得手打 AUMID）。</summary>
@@ -231,7 +231,7 @@ public partial class MusicSettingsView : UserControl
         grid.Children.Add(new TextBlock
         {
             Text = id,
-            FontSize = 12,
+            FontSize = 16,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = new SolidColorBrush(Color.Parse("#B8B8B8")),
         });
@@ -239,14 +239,14 @@ public partial class MusicSettingsView : UserControl
         var plus = new TextBlock
         {
             Text = "＋",
-            FontSize = 12,
+            FontSize = 16,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = new SolidColorBrush(Color.Parse("#C6CA4C")),
         };
         Grid.SetColumn(plus, 1);
         grid.Children.Add(plus);
 
-        var row = Row(grid, "#262628");
+        var row = Row(grid, "#2A2A2C");
         row.Cursor = new Cursor(StandardCursorType.Hand);
         row.PointerPressed += (_, e) =>
         {
@@ -261,7 +261,7 @@ public partial class MusicSettingsView : UserControl
     {
         Background = new SolidColorBrush(Color.Parse(background)),
         CornerRadius = new CornerRadius(6),
-        Padding = new Thickness(8, 4),
+        Padding = new Thickness(8, 6),
         Child = inner,
     };
 
@@ -271,6 +271,8 @@ public partial class MusicSettingsView : UserControl
         LabelExpandedTimeout.Text = Localization.LabelExpandedTimeout;
         LabelShowTitle.Text = Localization.LabelShowTitleWhenNoLyric;
         LabelVisualizer.Text = Localization.LabelShowVisualizer;
+        LabelVisualizerIntensity.Text = Localization.LabelVisualizerIntensity;
+        LabelVisualizerBars.Text = Localization.LabelVisualizerBars;
         LabelLyricSource.Text = Localization.LabelLyricSource;
         LabelMusicSourceWhitelist.Text = Localization.LabelMusicSourceWhitelist;
         HintMusicSourceWhitelist.Text = Localization.HintMusicSourceWhitelist;
@@ -290,7 +292,37 @@ public partial class MusicSettingsView : UserControl
         LyricSourceCombo.Items.Add(new ComboBoxItem { Content = Localization.LyricSourceOff, Tag = "off" });
     }
 
-    private void UpdateExpandedText() => ExpandedTimeoutValue.Text = $"{ExpandedTimeoutSlider.Value:F1}s";
+    /// <summary>滑块 + 步进器双向绑定：两者编辑同一个值，任一改动即时保存。</summary>
+    private void WirePair(Slider slider, NumericUpDown stepper, string format)
+    {
+        stepper.FormatString = format;
+
+        _syncing = true;
+        stepper.Value = (decimal)slider.Value;
+        _syncing = false;
+
+        slider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != RangeBase.ValueProperty || _syncing)
+                return;
+
+            _syncing = true;
+            stepper.Value = (decimal)slider.Value;
+            _syncing = false;
+            Save();
+        };
+
+        stepper.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != NumericUpDown.ValueProperty || _syncing || stepper.Value is not decimal v)
+                return;
+
+            _syncing = true;
+            slider.Value = Math.Clamp((double)v, slider.Minimum, slider.Maximum);
+            _syncing = false;
+            Save();
+        };
+    }
 
     /// <param name="sourcesOverride">白名单改动走这里；为空表示"沿用当前名单"。</param>
     private void Save(IReadOnlyList<string>? sourcesOverride = null)
@@ -300,6 +332,8 @@ public partial class MusicSettingsView : UserControl
             ExpandedTimeoutSeconds = Math.Round(ExpandedTimeoutSlider.Value, 1),
             ShowTitleWhenNoLyric = ShowTitleSwitch.IsChecked == true,
             ShowVisualizer = VisualizerSwitch.IsChecked == true,
+            VisualizerIntensity = Math.Round(VisualizerIntensitySlider.Value, 1),
+            VisualizerBars = (int)Math.Round(VisualizerBarsSlider.Value),
             LyricSource = SelectedLyricSource(),
             // 空数组是合法状态：不采集频谱、也不主动弹岛
             SpectrumSources = sourcesOverride ?? CurrentSources(),

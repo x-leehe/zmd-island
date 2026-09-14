@@ -59,6 +59,39 @@ public class SpectrumCurveTests
         Assert.All(values, value => Assert.Equal(0.4d, value, 6));
     }
 
+    [Fact]
+    public void Amplify_at_one_is_identity()
+    {
+        Assert.Equal(0.3d, SpectrumCurve.Amplify(0.3d, 1d), 6);
+        Assert.Equal(0.5d, SpectrumCurve.Amplify(0.5d, 1d), 6);
+        Assert.Equal(0.9d, SpectrumCurve.Amplify(0.9d, 1d), 6);
+    }
+
+    [Fact]
+    public void Amplify_expands_contrast_around_the_midpoint()
+    {
+        // 强度 > 1：高于 0.5 的更高，低于 0.5 的更低 —— 起伏变大
+        Assert.True(SpectrumCurve.Amplify(0.8d, 1.5d) > 0.8d);
+        Assert.True(SpectrumCurve.Amplify(0.2d, 1.5d) < 0.2d);
+        // 轴点不动
+        Assert.Equal(0.5d, SpectrumCurve.Amplify(0.5d, 2d), 6);
+    }
+
+    [Fact]
+    public void Amplify_below_one_flattens()
+    {
+        Assert.True(SpectrumCurve.Amplify(0.8d, 0.5d) < 0.8d);
+        Assert.True(SpectrumCurve.Amplify(0.2d, 0.5d) > 0.2d);
+    }
+
+    [Theory]
+    [InlineData(-1d, 0d)]
+    [InlineData(0d, 0d)]
+    [InlineData(1d, 1d)]
+    [InlineData(2d, 1d)]
+    public void Amplify_clamps_to_unit_range(double input, double expected) =>
+        Assert.Equal(expected, SpectrumCurve.Amplify(input, 2d), 6);
+
     private static double MaxJump(double[] values)
     {
         double max = 0d;
