@@ -474,7 +474,7 @@ public partial class HudWindow : Window, IIslandHost
         if (screen is null)
             return;
 
-        var menu = new IslandContextMenuWindow(_settings, _registry);
+        var menu = new IslandContextMenuWindow(_settings, _registry, this);
         menu.SettingsClicked += () => _ = OpenSettingsDrawerAsync();
         menu.ExitClicked += () =>
         {

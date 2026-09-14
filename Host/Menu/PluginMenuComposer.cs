@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using EndfieldCharge.Contracts;
+using EndfieldCharge.Host.Island;
 using EndfieldCharge.Host.Plugins;
 
 namespace EndfieldCharge.Host.Menu;
@@ -14,9 +16,10 @@ namespace EndfieldCharge.Host.Menu;
 ///   3. 若已有内容区且宿主固定项非空 → 一条分隔线；
 ///   4. A 类——宿主固定项（hostFixed，按传入顺序）。
 ///
-/// 「插件 ▸」子菜单行由 BuildPluginChildren 从注册表生成（宿主负责添加该条目）：
-/// 每个已注册插件一行，Header = DisplayName，IsChecked = true（启用占位），
-/// IsEnabled = plugin.CanUnload——元插件（CanUnload=false，如 battery.meta）锁定/禁用。
+/// 「插件 ▸」子菜单行由 BuildPanelChildren 生成（宿主负责添加该条目）：
+/// 列出所有**声明了岛面板**的插件（实现 IIslandSkin）；参与滚轮轮转的项可用、点击即切换；
+/// 明确声明滚轮找不到的（ParticipatesInWheelSwitch=false）项**置灰不可点**——让用户知道这里确实有个插件，
+/// 但不会把不该被切到的面板切出来。
 /// </summary>
 public static class PluginMenuComposer
 {
@@ -64,20 +67,34 @@ public static class PluginMenuComposer
     }
 
     /// <summary>
-    /// 「插件 ▸」子菜单行：由注册表生成，一个插件一行。
-    /// 元插件（CanUnload=false）→ IsEnabled=false（锁定，不可切换）。
+    /// 「插件 ▸」子菜单行：列出所有声明了岛面板的插件。
+    /// <para>
+    /// <paramref name="switchableIds"/> = 参与滚轮轮转的面板；在此集合内的项可用、点击即切换；
+    /// 不在其中的项 <c>IsEnabled=false</c> 置灰（自绘菜单会画禁用色且不挂点击）——让用户知道
+    /// 这里确实有个插件，但它被声明为「滚轮找不到」，同样不可点。
+    /// </para>
+    /// <para>只管「跳转」，不表达当前状态——因此不打勾、不显示当前项。</para>
     /// </summary>
-    public static IReadOnlyList<MenuContribution> BuildPluginChildren(MenuTarget target, IPluginRegistry registry)
-        => registry.Plugins
-            .OrderBy(p => p.Id)
-            .Select(p => new MenuContribution
+    public static IReadOnlyList<MenuContribution> BuildPanelChildren(
+        MenuTarget target,
+        IPluginRegistry registry,
+        IReadOnlyList<string> switchableIds,
+        Action<string> switchTo)
+    {
+        var switchable = new HashSet<string>(switchableIds, StringComparer.OrdinalIgnoreCase);
+
+        return registry.Plugins
+            .Select(plugin => (Plugin: plugin, Skin: plugin as IIslandSkin))
+            .Where(x => x.Skin is not null)
+            .Select(x => new MenuContribution
             {
-                Id = $"plugins.managed.{p.Id}",
-                Header = p.DisplayName,
+                Id = $"panels.switch.{x.Skin!.Id}",
+                Header = x.Plugin.DisplayName,
                 Target = target,
                 Section = MenuSection.HostFixed,
-                IsChecked = true,          // 启用占位（v1 无真实启用/禁用状态）
-                IsEnabled = p.CanUnload,   // 元插件锁定
+                IsEnabled = switchable.Contains(x.Skin!.Id),
+                Command = () => switchTo(x.Skin!.Id),
             })
             .ToArray();
+    }
 }

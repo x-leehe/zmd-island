@@ -45,6 +45,8 @@ public static class Localization
     // ---- 岛右键菜单 ----
     public static string Topmost => IsChinese ? "窗口置顶" : "Always on Top";
     public static string Plugins => IsChinese ? "插件" : "Plugins";
+    /// <summary>右键 / 托盘菜单里「插件 ▸」子菜单的标题（内容实为面板跳转，故与设置页的「插件」分开）。</summary>
+    public static string Panels => IsChinese ? "面板" : "Panels";
     public static string PluginBattery => IsChinese ? "电池仪表" : "Battery Gauge";
     public static string PluginFileTray => IsChinese ? "文件托盘" : "File Tray";
     public static string PluginWeather => IsChinese ? "天气" : "Weather";

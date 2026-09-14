@@ -374,7 +374,15 @@ public partial class App : Application
         if (_pluginRegistry is null)
             return new NativeMenu();
 
-        var pluginChildren = PluginMenuComposer.BuildPluginChildren(MenuTarget.Tray, _pluginRegistry);
+        var pluginChildren = PluginMenuComposer.BuildPanelChildren(
+            MenuTarget.Tray,
+            _pluginRegistry,
+            _hud?.WheelSkinIds ?? Array.Empty<string>(),
+            id =>
+            {
+                _hud?.SwitchSkin(id);
+                _ = _hud?.ShowWaitingAsync(); // 托盘入口：切完顺带把岛以等待态显示出来
+            });
 
         var hostFixed = new List<MenuContribution>
         {
@@ -409,7 +417,7 @@ public partial class App : Application
             new()
             {
                 Id = "tray.plugins",
-                Header = Localization.Plugins,
+                Header = Localization.Panels,
                 Target = MenuTarget.Tray,
                 Section = MenuSection.HostFixed,
                 Priority = 3,

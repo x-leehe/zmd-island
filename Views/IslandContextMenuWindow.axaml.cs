@@ -13,6 +13,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using EndfieldCharge.Contracts;
+using EndfieldCharge.Contracts.Avalonia;
 using EndfieldCharge.Host.Menu;
 using EndfieldCharge.Host.Plugins;
 using EndfieldCharge.Services;
@@ -91,9 +92,13 @@ public partial class IslandContextMenuWindow : Window
     private double _subH;
     private Path? _topmostCheck;
 
-    public IslandContextMenuWindow(AppSettings settings, IPluginRegistry registry)
+    /// <summary>宿主服务：用于「插件 ▸」里切换岛面板（当前面板 / 切换）。</summary>
+    private readonly IIslandHost _host;
+
+    public IslandContextMenuWindow(AppSettings settings, IPluginRegistry registry, IIslandHost host)
     {
         _settings = settings;
+        _host = host;
         _mouseProc = OnLowLevelMouse; // 委托必须先固定到字段，防止 GC 回收钩子回调
         InitializeComponent();
 
@@ -108,7 +113,15 @@ public partial class IslandContextMenuWindow : Window
     /// </summary>
     private void BuildMenu(IPluginRegistry registry)
     {
-        var pluginChildren = PluginMenuComposer.BuildPluginChildren(MenuTarget.Island, registry);
+        var pluginChildren = PluginMenuComposer.BuildPanelChildren(
+            MenuTarget.Island,
+            registry,
+            _host.WheelSkinIds,
+            id =>
+            {
+                RequestClose();      // 点击即跳转：先收起菜单，再切到该面板
+                _host.SwitchSkin(id);
+            });
 
         var topmost = new MenuContribution
         {
@@ -122,7 +135,7 @@ public partial class IslandContextMenuWindow : Window
         var plugins = new MenuContribution
         {
             Id = HostPluginsId,
-            Header = Localization.Plugins,
+            Header = Localization.Panels,
             Target = MenuTarget.Island,
             Section = MenuSection.HostFixed,
             Children = pluginChildren,
