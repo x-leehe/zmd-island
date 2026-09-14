@@ -276,7 +276,7 @@ public partial class MusicIslandView : UserControl
                 continue;                                       // 还不到时候（"不应该一直尝试动"）
 
             target.PageStart = next;
-            StartFollowTween(target, -next * (target.Natural - box));
+            StartFollowTween(target, -next * target.Natural);
         }
     }
 
