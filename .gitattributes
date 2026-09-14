@@ -1,0 +1,11 @@
+# Normalize line endings to LF on checkout on every platform, matching
+# .editorconfig (end_of_line = lf). Without this the Windows CI runner
+# checks text files out as CRLF and `dotnet format --verify-no-changes`
+# fails with ENDOFLINE on the whole host project.
+
+* text=auto eol=lf
+
+# Never touch binaries
+*.png binary
+*.ico binary
+*.ttf binary
