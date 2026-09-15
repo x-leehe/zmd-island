@@ -68,7 +68,7 @@ public partial class SettingsWindow : Window
         // 窗口图标
         try
         {
-            using var stream = AssetLoader.Open(new Uri("avares://EndfieldCharge/Assets/tray_bolt.png"));
+            using var stream = AssetLoader.Open(new Uri("avares://EndfieldIsland/Assets/tray_bolt.png"));
             Icon = new WindowIcon(new Bitmap(stream));
         }
         catch { }
@@ -311,6 +311,10 @@ public partial class SettingsWindow : Window
         LabelAuthor.Text = Localization.LabelAuthor;
         AboutSubtitleText.Text = Localization.AboutSubtitle;
         CheckUpdateBtn.Content = Localization.BtnCheckUpdate;
+        // 只有 Release 通道的构建才开放「检查更新」：流水号构建与本地构建没有 Release 可查
+        var canCheckUpdate = Services.UpdateChecker.IsReleaseChannel;
+        CheckUpdateBtn.IsEnabled = canCheckUpdate;
+        UpdateStatusText.Text = canCheckUpdate ? string.Empty : Localization.UpdateUnavailable;
         FontSectionTitle.Text = Localization.FontSectionTitle;
         FontDescText.Text = Localization.FontDesc;
         FontInstallBtn.Content = Localization.BtnInstallFont;

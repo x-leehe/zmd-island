@@ -24,7 +24,7 @@ public partial class TrayMenuWindow : Window
         // 窗口图标
         try
         {
-            using var stream = AssetLoader.Open(new Uri("avares://EndfieldCharge/Assets/tray_bolt.png"));
+            using var stream = AssetLoader.Open(new Uri("avares://EndfieldIsland/Assets/tray_bolt.png"));
             Icon = new WindowIcon(new Bitmap(stream));
         }
         catch { }

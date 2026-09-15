@@ -5,7 +5,7 @@
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="160"
         x:Class="EndfieldCharge.Views.HudWindow"
         Width="1200" Height="160"
-        Title="EndfieldCharge"
+        Title="EndfieldIsland"
 
         SystemDecorations="None"
         Background="Transparent"
@@ -22,7 +22,7 @@
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="avares://EndfieldCharge.Contracts.Avalonia/Styles/Geometries.axaml"/>
-        <ResourceInclude Source="avares://EndfieldCharge/Styles/HudTheme.axaml"/>
+        <ResourceInclude Source="avares://EndfieldIsland/Styles/HudTheme.axaml"/>
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Window.Resources>

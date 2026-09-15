@@ -12,7 +12,7 @@
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
-        <ResourceInclude Source="avares://EndfieldCharge/Styles/HudTheme.axaml"/>
+        <ResourceInclude Source="avares://EndfieldIsland/Styles/HudTheme.axaml"/>
         <!-- 全局「设置控件」主题 token（强调色 / 滑块 / 开关） -->
         <ResourceInclude Source="avares://EndfieldCharge.Contracts.Avalonia/Styles/SettingsTokens.axaml"/>
       </ResourceDictionary.MergedDictionaries>

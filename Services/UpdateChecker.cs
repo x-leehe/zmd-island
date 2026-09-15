@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -12,8 +13,29 @@ public static class UpdateChecker
 
     static UpdateChecker()
     {
-        Client.DefaultRequestHeaders.UserAgent.ParseAdd("EndfieldCharge/1.0");
+        Client.DefaultRequestHeaders.UserAgent.ParseAdd("EndfieldIsland/1.0");
         Client.Timeout = TimeSpan.FromSeconds(8);
+    }
+
+    /// <summary>
+    /// 是否为 Release 通道的构建：CI 在 v* 标签上构建时注入 UpdateChannel=release，
+    /// 流水号构建与本地构建没有该标记。界面据此决定「检查更新」是否可用——
+    /// 没有 Release 的构建既查不到东西，也不该给用户一个必然失败的按钮。
+    /// </summary>
+    public static bool IsReleaseChannel { get; } = HasReleaseChannel();
+
+    private static bool HasReleaseChannel()
+    {
+        foreach (var meta in typeof(UpdateChecker).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>())
+        {
+            if (string.Equals(meta.Key, "UpdateChannel", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(meta.Value, "release", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -25,8 +47,8 @@ public static class UpdateChecker
     {
         // 替换为实际的 owner/repo
         var url = ReleasesUrl
-            .Replace("{owner}", "Lenkmat")
-            .Replace("{repo}", "endfield-charge");
+            .Replace("{owner}", "X-LeeHe")
+            .Replace("{repo}", "zmd-island");
 
         var response = await Client.GetAsync(url);
         response.EnsureSuccessStatusCode();

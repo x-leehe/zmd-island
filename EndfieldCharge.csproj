@@ -13,11 +13,11 @@
     <NoWarn>$(NoWarn);AVLN3001</NoWarn>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\tray_bolt.ico</ApplicationIcon>
-    <AssemblyName>EndfieldCharge</AssemblyName>
+    <AssemblyName>EndfieldIsland</AssemblyName>
     <RootNamespace>EndfieldCharge</RootNamespace>
-    <Authors>Lenkmat</Authors>
-    <Company>Lenkmat</Company>
-    <Copyright>Copyright © 2026 Lenkmat</Copyright>
+    <Authors>X-LeeHe</Authors>
+    <Company>X-LeeHe</Company>
+    <Copyright>Copyright © 2026 X-LeeHe; original work © 2026 Lenkmat</Copyright>
     <PlatformTarget>x64</PlatformTarget>
     <!-- 单文件发布，方便丢进开机启动 -->
     <PublishSingleFile Condition="'$(Configuration)'=='Release'">true</PublishSingleFile>
@@ -32,6 +32,12 @@
          src/ / plugins/ / tests/ 为独立项目（契约程序集、外部插件、单元测试），由各自 csproj 编译 -->
     <DefaultItemExcludes>$(DefaultItemExcludes);reference/**;references/**;src/**;plugins/**;tests/**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <!-- 更新通道：CI 在 v* 标签上构建时传 -p:UpdateChannel=release；流水号构建与本地构建不带此属性。
+       应用内「检查更新」据此判断有没有 Release 可查（见 Services/UpdateChecker.IsReleaseChannel）。 -->
+  <ItemGroup Condition="'$(UpdateChannel)' != ''">
+    <AssemblyMetadata Include="UpdateChannel" Value="$(UpdateChannel)" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="src\EndfieldCharge.Contracts\EndfieldCharge.Contracts.csproj" />

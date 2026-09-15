@@ -74,7 +74,7 @@ public sealed class LrclibProvider : ICandidateLyricsProvider
 {
     private const string GetEndpoint = "https://lrclib.net/api/get";
     private const string SearchEndpoint = "https://lrclib.net/api/search";
-    private const string UserAgent = "EndfieldCharge/1.0 (https://github.com/x-leehe/zmd-island)";
+    private const string UserAgent = "EndfieldIsland/1.0 (https://github.com/X-LeeHe/zmd-island)";
 
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(6);
 

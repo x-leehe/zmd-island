@@ -1,7 +1,7 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!--
-    EndfieldCharge 全局「设置控件」排版资产：任何面板（宿主设置页 / 插件自绘面板）都可直接引用
+    EndfieldIsland 全局「设置控件」排版资产：任何面板（宿主设置页 / 插件自绘面板）都可直接引用
     这些 class，字号与版式即天然一致。字号刻意不锁死具体控件——面板仍可自行覆写大小。
       · section-title 分组标题（fs18 强调色）
       · section-bar   标题下的 36×8 强调条

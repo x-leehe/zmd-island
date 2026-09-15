@@ -352,7 +352,7 @@ public partial class App : Application
 
         try
         {
-            var uri = new Uri("avares://EndfieldCharge/Assets/tray_bolt.png");
+            var uri = new Uri("avares://EndfieldIsland/Assets/tray_bolt.png");
             using var stream = AssetLoader.Open(uri);
             _tray.Icon = new WindowIcon(new Bitmap(stream));
         }

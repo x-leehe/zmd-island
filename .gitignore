@@ -1,5 +1,5 @@
 # ============================================================
-# EndfieldCharge — .gitignore (.NET 8 / Avalonia 11 / Windows)
+# EndfieldIsland — .gitignore (.NET 8 / Avalonia 11 / Windows)
 # ============================================================
 
 # ---------- 构建产物 ----------
@@ -56,9 +56,10 @@ installer/Output/
 installer/*.exe
 installer/*.zip
 publish/
-EndfieldCharge-*-portable/
-EndfieldCharge-*-portable.zip
-EndfieldCharge-*-setup.exe
+# Endfield* 同时覆盖新命名 EndfieldIsland-* 与旧的 EndfieldCharge-*
+Endfield*-portable/
+Endfield*-portable.zip
+Endfield*-setup.exe
 *.msi
 *.iss.bak
 ISCC*.log

@@ -41,21 +41,24 @@ jobs:
         $wantRelease = "${{ inputs.publish_release }}" -eq "true"
         if ($env:GITHUB_REF -like 'refs/tags/v*') {
           $v = $env:GITHUB_REF -replace 'refs/tags/v', ''
+          $channel = 'release'
         } else {
           if ($wantRelease) {
             Write-Error "publish_release 需要运行在 v* 标签上（当前 $env:GITHUB_REF）"
             exit 1
           }
           $v = "0.0.$env:GITHUB_RUN_NUMBER"
+          $channel = 'ci'
         }
         "version=$v" >> $env:GITHUB_OUTPUT
-        Write-Host "Version: $v"
+        "channel=$channel" >> $env:GITHUB_OUTPUT
+        Write-Host "Version: $v (channel: $channel)"
 
     - name: Restore
       run: dotnet restore
 
     - name: Build (Release)
-      run: dotnet build -c Release --no-restore /p:TreatWarningsAsErrors=true /p:Version=${{ steps.ver.outputs.version }}
+      run: dotnet build -c Release --no-restore /p:TreatWarningsAsErrors=true /p:Version=${{ steps.ver.outputs.version }} /p:UpdateChannel=${{ steps.ver.outputs.channel }}
 
     - name: Test
       run: dotnet test tests/EndfieldCharge.Tests/EndfieldCharge.Tests.csproj -c Debug -v minimal
@@ -96,8 +99,8 @@ jobs:
       shell: pwsh
       run: |
         $v = "${{ steps.ver.outputs.version }}"
-        if (!(Test-Path "publish\EndfieldCharge.exe")) {
-          Write-Error "publish\EndfieldCharge.exe not found"
+        if (!(Test-Path "publish\EndfieldIsland.exe")) {
+          Write-Error "publish\EndfieldIsland.exe not found"
           exit 1
         }
         # 外部插件必须随发版一起打进去（由 EndfieldCharge.csproj 的 CopyPluginsToPublish 产出）
@@ -107,7 +110,7 @@ jobs:
         }
         # 必须包含 SkiaSharp native dll（libSkiaSharp / libHarfBuzzSharp / av_libglesv2），
         # 只打 exe 会导致启动即崩
-        $stage = "EndfieldCharge-$v-portable"
+        $stage = "EndfieldIsland-$v-portable"
         New-Item -ItemType Directory -Path $stage | Out-Null
         # -Recurse 不能省：publish\plugins\ 是子目录，不带 -Recurse 只会拷出空目录
         Copy-Item "publish\*" -Destination $stage -Exclude "*.pdb" -Recurse
@@ -131,10 +134,10 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: EndfieldCharge-${{ steps.ver.outputs.version }}
+        name: EndfieldIsland-${{ steps.ver.outputs.version }}
         path: |
           installer\Output\*.exe
-          EndfieldCharge-*-portable.zip
+          EndfieldIsland-*-portable.zip
         if-no-files-found: error
 
     # 手动发布：必须 workflow_dispatch + 勾选 publish_release + 运行在 v* 标签上
@@ -143,8 +146,8 @@ jobs:
       if: github.event_name == 'workflow_dispatch' && inputs.publish_release && startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
-        name: EndfieldCharge ${{ steps.ver.outputs.version }}
+        name: EndfieldIsland ${{ steps.ver.outputs.version }}
         generate_release_notes: true
         files: |
           installer\Output\*.exe
-          EndfieldCharge-*-portable.zip
+          EndfieldIsland-*-portable.zip

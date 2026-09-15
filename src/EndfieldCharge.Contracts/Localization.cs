@@ -40,7 +40,7 @@ public static class Localization
     public static string Exit => IsChinese ? "退出" : "Exit";
     public static string Show => IsChinese ? "显示" : "Show";
     public static string About => IsChinese ? "关于" : "About";
-    public static string TrayTooltip => IsChinese ? "EndfieldCharge · 电量 HUD" : "EndfieldCharge · Power HUD";
+    public static string TrayTooltip => IsChinese ? "EndfieldIsland · 电量 HUD" : "EndfieldIsland · Power HUD";
 
     // ---- 岛右键菜单 ----
     public static string Topmost => IsChinese ? "窗口置顶" : "Always on Top";
@@ -185,10 +185,14 @@ public static class Localization
     // ---- 更新 ----
     public static string UpdateTitle => IsChinese ? "发现新版本" : "Update Available";
     public static string UpdateMsg(string ver) => IsChinese
-        ? $"EndfieldCharge {ver} 已发布，是否前往下载？"
-        : $"EndfieldCharge {ver} is available. Download now?";
+        ? $"EndfieldIsland {ver} 已发布，是否前往下载？"
+        : $"EndfieldIsland {ver} is available. Download now?";
     public static string UpToDate => IsChinese ? "已是最新版本" : "You're up to date";
     public static string UpdateCheckFailed => IsChinese ? "检查更新失败" : "Update check failed";
+    // 当前不发布 Release（CI 只出 Artifact），没有可查询的「最新版本」
+    public static string UpdateUnavailable => IsChinese
+        ? "非 Release 版本，暂无法检查更新"
+        : "Non-release build — update check is unavailable";
     public static string BtnDownload => IsChinese ? "下载" : "Download";
     public static string BtnCancel => IsChinese ? "取消" : "Cancel";
 

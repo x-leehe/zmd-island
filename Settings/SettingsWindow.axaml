@@ -5,7 +5,7 @@
         mc:Ignorable="d"
         d:DesignWidth="580" d:DesignHeight="696"
         x:Class="EndfieldCharge.Settings.SettingsWindow"
-        Title="EndfieldCharge · 设置"
+        Title="EndfieldIsland · 设置"
         Width="580"
         SystemDecorations="None"
         Background="Transparent"
@@ -385,11 +385,11 @@
               <StackPanel Spacing="16" Margin="0,12,0,0">
                 <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
                   <Border Width="48" Height="48" CornerRadius="12" Background="#2A2A2D">
-                    <Image Width="28" Height="28" Source="avares://EndfieldCharge/Assets/tray_bolt.png"
+                    <Image Width="28" Height="28" Source="avares://EndfieldIsland/Assets/tray_bolt.png"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                   </Border>
                   <StackPanel Spacing="2" VerticalAlignment="Center">
-                    <TextBlock Text="EndfieldCharge" FontSize="18" FontWeight="Bold" Foreground="#F0F0F0"/>
+                    <TextBlock Text="EndfieldIsland" FontSize="18" FontWeight="Bold" Foreground="#F0F0F0"/>
                     <TextBlock x:Name="AboutSubtitleText" FontSize="14" Foreground="#888888"/>
                   </StackPanel>
                 </StackPanel>
@@ -400,7 +400,7 @@
                 </Grid>
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock x:Name="LabelAuthor" Classes="row-label"/>
-                  <TextBlock Grid.Column="1" Text="Lenkmat" Classes="row-value" Foreground="#F0F0F0"/>
+                  <TextBlock Grid.Column="1" Text="X-LeeHe" Classes="row-value" Foreground="#F0F0F0"/>
                 </Grid>
 
                 <Grid ColumnDefinitions="*,Auto">

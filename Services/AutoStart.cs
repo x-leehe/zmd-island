@@ -57,5 +57,5 @@ public static class AutoStart
     /// <summary>当前进程的 exe 完整路径（自启用）。</summary>
     public static string CurrentExePath =>
         Environment.ProcessPath
-        ?? System.IO.Path.Combine(AppContext.BaseDirectory, "EndfieldCharge.exe");
+        ?? System.IO.Path.Combine(AppContext.BaseDirectory, "EndfieldIsland.exe");
 }

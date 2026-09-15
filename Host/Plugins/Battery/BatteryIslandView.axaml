@@ -14,7 +14,7 @@
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="avares://EndfieldCharge.Contracts.Avalonia/Styles/Geometries.axaml"/>
-        <ResourceInclude Source="avares://EndfieldCharge/Styles/HudTheme.axaml"/>
+        <ResourceInclude Source="avares://EndfieldIsland/Styles/HudTheme.axaml"/>
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </UserControl.Resources>

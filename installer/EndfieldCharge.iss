@@ -1,12 +1,12 @@
-; Inno Setup 脚本 —— EndfieldCharge Windows 安装器
+; Inno Setup 脚本 —— EndfieldIsland Windows 安装器
 ; 使用：iscc installer\EndfieldCharge.iss
 ; CI 会先把 MyAppVersion 替换为实际版本号
 
-#define MyAppName "EndfieldCharge"
+#define MyAppName "EndfieldIsland"
 #define MyAppVersion "0.0.0"
-#define MyAppPublisher "Lenkmat"
-#define MyAppURL "https://github.com/Lenkmat/endfield-charge"
-#define MyAppExeName "EndfieldCharge.exe"
+#define MyAppPublisher "X-LeeHe"
+#define MyAppURL "https://github.com/X-LeeHe/zmd-island"
+#define MyAppExeName "EndfieldIsland.exe"
 
 [Setup]
 AppId={{6B6BD34B-6E4D-490C-A8AE-62963965257A}
@@ -17,12 +17,12 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\EndfieldCharge
+DefaultDirName={autopf}\EndfieldIsland
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 DisableDirPage=auto
 OutputDir=Output
-OutputBaseFilename=EndfieldCharge-{#MyAppVersion}-setup
+OutputBaseFilename=EndfieldIsland-{#MyAppVersion}-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -63,7 +63,7 @@ Name: "{autodesktop}\{#MyAppName}";        Filename: "{app}\{#MyAppExeName}"; Ta
 [Registry]
 ; 勾选「开机自动启动」时写入 HKCU Run（与程序内托盘勾选同一位置，程序内可再取消）
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
-    ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; \
+    ValueType: string; ValueName: "EndfieldCharge"; ValueData: """{app}\{#MyAppExeName}"""; \
     Flags: uninsdeletevalue; Tasks: startup
 
 [Run]
