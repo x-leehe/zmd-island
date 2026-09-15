@@ -19,6 +19,7 @@ public partial class MusicSettingsView : UserControl
     private readonly Func<MusicSettings> _read;
     private readonly Action<MusicSettings> _write;
     private readonly Func<IReadOnlyList<string>> _knownSources;
+    private readonly Func<string> _lyricsDirectory;
 
     /// <summary>「见过的来源」的轻量刷新器：播放器一出现就能立刻在这里看到。</summary>
     private readonly DispatcherTimer _knownRefresh;
@@ -32,16 +33,19 @@ public partial class MusicSettingsView : UserControl
     /// <param name="read">读取插件当前设置。</param>
     /// <param name="write">写回设置（插件据此持久化并立即生效）。</param>
     /// <param name="knownSources">插件见过的来源（AUMID），用于列出可勾选的白名单候选。</param>
+    /// <param name="lyricsDirectory">歌词目录（缓存与本地歌词共用），用于统计 / 清空磁盘缓存。</param>
     public MusicSettingsView(
         Func<MusicSettings> read,
         Action<MusicSettings> write,
-        Func<IReadOnlyList<string>> knownSources)
+        Func<IReadOnlyList<string>> knownSources,
+        Func<string> lyricsDirectory)
     {
         InitializeComponent();
 
         _read = read;
         _write = write;
         _knownSources = knownSources;
+        _lyricsDirectory = lyricsDirectory;
 
         ApplyLocalization();
 
@@ -52,10 +56,28 @@ public partial class MusicSettingsView : UserControl
         VisualizerIntensitySlider.Value = s.VisualizerIntensity;
         VisualizerBarsSlider.Value = s.VisualizerBars;
         SelectLyricSource(s.LyricSource);
+        LyricsCacheLimitSlider.Value = LyricsCache.ClampLimitMegabytes(s.LyricsCacheLimitMegabytes);
 
         WirePair(ExpandedTimeoutSlider, ExpandedTimeoutStepper, "{0:F1}");
         WirePair(VisualizerIntensitySlider, VisualizerIntensityStepper, "{0:F2}");
         WirePair(VisualizerBarsSlider, VisualizerBarsStepper, "{0:F0}");
+        WirePair(LyricsCacheLimitSlider, LyricsCacheLimitStepper, "{0:F0}");
+
+        // 上限改动 → WirePair 已触发 Save()（插件据此立即回收），把读数刷新 Post 到下一轮 UI 循环，
+        // 这样显示的一定是回收后的占用，而不是改动前的。
+        LyricsCacheLimitSlider.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty)
+                Dispatcher.UIThread.Post(RefreshCacheUsage);
+        };
+        LyricsCacheLimitStepper.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == NumericUpDown.ValueProperty)
+                Dispatcher.UIThread.Post(RefreshCacheUsage);
+        };
+
+        LyricsCacheClearButton.Click += (_, _) => ClearLyricsCache();
+        RefreshCacheUsage();
 
         WhitelistInput.Watermark = Localization.WhitelistPlaceholder;
         WhitelistAddButton.Content = Localization.WhitelistAdd;
@@ -276,6 +298,9 @@ public partial class MusicSettingsView : UserControl
         LabelLyricSource.Text = Localization.LabelLyricSource;
         LabelMusicSourceWhitelist.Text = Localization.LabelMusicSourceWhitelist;
         HintMusicSourceWhitelist.Text = Localization.HintMusicSourceWhitelist;
+        LabelLyricsCacheLimit.Text = Localization.LabelLyricsCacheLimit;
+        DescLyricsCacheLimit.Text = Localization.DescLyricsCacheLimit;
+        LyricsCacheClearButton.Content = Localization.BtnClearLyricsCache;
         WhitelistAllowedLabel.Text = Localization.WhitelistAllowed;
         WhitelistEmptyLabel.Text = Localization.WhitelistEmpty;
         WhitelistKnownLabel.Text = Localization.WhitelistKnown;
@@ -290,6 +315,25 @@ public partial class MusicSettingsView : UserControl
         LyricSourceCombo.Items.Add(new ComboBoxItem { Content = Localization.LyricSourceNetease, Tag = "netease" });
         LyricSourceCombo.Items.Add(new ComboBoxItem { Content = Localization.LyricSourceLocal, Tag = "local" });
         LyricSourceCombo.Items.Add(new ComboBoxItem { Content = Localization.LyricSourceOff, Tag = "off" });
+    }
+
+    /// <summary>刷新缓存占用读数（只统计缓存文件；用户手写的歌词不计入上限）。</summary>
+    private void RefreshCacheUsage()
+    {
+        var (files, bytes) = LyricsCache.Measure(_lyricsDirectory());
+        LyricsCacheUsageText.Text = Localization.LyricsCacheUsage(LyricsCache.FormatSize(bytes), files);
+    }
+
+    /// <summary>清空磁盘缓存：只删缓存文件（用户手写的 .lrc 保留），刷新读数并提示释放量。</summary>
+    private void ClearLyricsCache()
+    {
+        var (_, freed) = LyricsCache.Clear(_lyricsDirectory());
+
+        // 内存里已取到的歌词不受影响；这里只管磁盘，之后新歌会按需重新落盘
+        RefreshCacheUsage();
+        LyricsCacheStatusText.Text = Localization.LyricsCacheCleared(LyricsCache.FormatSize(freed));
+        LyricsCacheStatusText.Opacity = 1;
+        DispatcherTimer.RunOnce(() => LyricsCacheStatusText.Opacity = 0, TimeSpan.FromSeconds(2));
     }
 
     /// <summary>滑块 + 步进器双向绑定：两者编辑同一个值，任一改动即时保存。</summary>
@@ -334,6 +378,7 @@ public partial class MusicSettingsView : UserControl
             ShowVisualizer = VisualizerSwitch.IsChecked == true,
             VisualizerIntensity = Math.Round(VisualizerIntensitySlider.Value, 1),
             VisualizerBars = (int)Math.Round(VisualizerBarsSlider.Value),
+            LyricsCacheLimitMegabytes = (int)Math.Round(LyricsCacheLimitSlider.Value),
             LyricSource = SelectedLyricSource(),
             // 空数组是合法状态：不采集频谱、也不主动弹岛
             SpectrumSources = sourcesOverride ?? CurrentSources(),

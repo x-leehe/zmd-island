@@ -30,6 +30,14 @@ public sealed record MusicSettings
     public int VisualizerBars { get; init; } = 64;
 
     /// <summary>
+    /// 歌词磁盘缓存上限（MB，5–200，默认 20）：超出后按 LRU（最久未用先删）淘汰。
+    /// <para>
+    /// 旧版 settings.json 没有这个字段 → 反序列化后保持默认 20，不会变成 0。
+    /// </para>
+    /// </summary>
+    public int LyricsCacheLimitMegabytes { get; init; } = 20;
+
+    /// <summary>
     /// 歌词来源：<c>merge</c>（默认：三源并行择优） / <c>prefer-lrclib</c> / <c>prefer-netease</c> /
     /// <c>prefer-local</c>（这三种 = 串行回退，排第一的优先） / <c>lrclib</c> / <c>netease</c> / <c>local</c>（仅这一源） /
     /// <c>off</c>（关闭）。旧值 <c>auto</c> / <c>smtc</c> 由 <see cref="LyricsService"/> 迁移为 <c>merge</c>。

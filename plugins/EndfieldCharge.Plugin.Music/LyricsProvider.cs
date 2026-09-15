@@ -93,12 +93,27 @@ public sealed class LrclibProvider : ICandidateLyricsProvider
     private readonly string _cacheDirectory;
     private readonly Dictionary<string, LyricsHit?> _memory = new(StringComparer.Ordinal);
 
+    /// <summary>磁盘缓存上限（字节）：写入后与构造时按 LRU 回收；设置页改上限时由插件调 <see cref="ApplyCacheLimit"/> 更新。</summary>
+    private long _cacheLimitBytes;
+
     /// <param name="cacheDirectory">磁盘缓存目录（<c>&lt;插件数据目录&gt;\lyrics</c>）；为空则只用内存缓存。</param>
     /// <param name="httpClient">测试可注入；为空时用共享实例。</param>
-    public LrclibProvider(string cacheDirectory, HttpClient? httpClient = null)
+    /// <param name="cacheLimitBytes">磁盘缓存上限（字节）：构造时立即按它回收一次，超限先删最久未用的。</param>
+    public LrclibProvider(
+        string cacheDirectory,
+        HttpClient? httpClient = null,
+        long cacheLimitBytes = LyricsCache.DefaultLimitBytes)
     {
         _cacheDirectory = cacheDirectory ?? string.Empty;
         _http = httpClient ?? SharedClient.Value;
+        ApplyCacheLimit(cacheLimitBytes);       // 上次运行留下的超限缓存，构造即回收
+    }
+
+    /// <summary>应用新的磁盘缓存上限（字节）并立即回收一次 —— 设置里调低上限后无需重启即生效。</summary>
+    public void ApplyCacheLimit(long cacheLimitBytes)
+    {
+        _cacheLimitBytes = Math.Max(0, cacheLimitBytes);
+        PruneCache();
     }
 
     /// <inheritdoc />
@@ -311,8 +326,11 @@ public sealed class LrclibProvider : ICandidateLyricsProvider
     // 缓存「一行候选头 + 原始 LRC 文本」：
     //   * 存原始文本（不是解析结果）→ 解析规则将来改进，旧缓存也能受益；
     //   * 存候选头 → 缓存命中时仍能参与跨源打分（只存文本的话，缓存里的命中就没法比较）。
-    // **旧版本写的「没有候选头」的缓存一律视为过期**：不采用、重新联网取 ——
-    // 否则旧的错误匹配会被缓存永久钉住（这正是"歌词一直不对"的成因之一）。
+    // **旧版本写的「没有候选头」的缓存一律视为过期**：不采用、重新联网取，并把该文件删掉 ——
+    // 否则旧的错误匹配会被缓存永久钉住（这正是"歌词一直不对"的成因之一），白白占着目录。
+    //
+    // 目录与用户的本地歌词共用（LocalLrcProvider 也读这里），所以一切删除都走 LyricsCache ——
+    // 它只碰 `^[0-9A-F]{16}\.lrc$` 的缓存文件，手写的 .lrc 不受影响。
 
     private const string HeaderPrefix = "#candidate ";
     private const char HeaderSeparator = '\u001f';
@@ -338,7 +356,10 @@ public sealed class LrclibProvider : ICandidateLyricsProvider
             var text = File.ReadAllText(path);
             var (header, body) = SplitHeader(text);
             if (header is null)
-                return null;                 // 旧格式 → 过期，联网重取
+            {
+                DeleteStale(path);           // 旧格式（无候选头）→ 过期：删掉，别永远占着目录
+                return null;
+            }
 
             var timeline = LrcParser.Parse(body);
             if (timeline.IsEmpty)
@@ -347,12 +368,55 @@ public sealed class LrclibProvider : ICandidateLyricsProvider
             var candidate = ParseHeader(header)
                 ?? new LyricsCandidate(string.Empty, query.Title, query.Artist, query.Album, query.Duration);
 
+            Touch(path);                     // 命中即"最近使用"：淘汰顺序反映最后使用，而不是首次写入
+
             return new LyricsHit(candidate, timeline);
         }
         catch (Exception ex)
         {
             Logger.Warn($"Music: 歌词缓存读取失败 —— {ex.Message}");
             return null;
+        }
+    }
+
+    /// <summary>命中缓存后回写访问时间（best-effort：失败只影响将来的淘汰顺序，不影响取词）。</summary>
+    private static void Touch(string path)
+    {
+        try
+        {
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"Music: 歌词缓存访问时间回写失败（{path}）—— {ex.Message}");
+        }
+    }
+
+    /// <summary>删除无候选头的过期缓存（<see cref="LyricsCache.IsCacheFile"/> 兜底，用户歌词不可能被命中）。</summary>
+    private static void DeleteStale(string path)
+    {
+        try
+        {
+            if (LyricsCache.IsCacheFile(Path.GetFileName(path)))
+                File.Delete(path);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"Music: 过期歌词缓存删除失败（{path}）—— {ex.Message}");
+        }
+    }
+
+    /// <summary>按上限回收一次磁盘缓存（LRU：最久未用先删）；真的删了才写日志。</summary>
+    private void PruneCache()
+    {
+        if (string.IsNullOrEmpty(_cacheDirectory))
+            return;
+
+        var (deleted, freed) = LyricsCache.Prune(_cacheDirectory, _cacheLimitBytes);
+        if (deleted > 0)
+        {
+            Logger.Info($"Music: 歌词缓存超出上限（{LyricsCache.FormatSize(_cacheLimitBytes)}）→ " +
+                        $"回收 {deleted} 个 / 释放 {LyricsCache.FormatSize(freed)}");
         }
     }
 
@@ -371,6 +435,7 @@ public sealed class LrclibProvider : ICandidateLyricsProvider
                 lines.Append('[').Append(line.Time.ToString(@"mm\:ss\.fff")).Append(']').Append(line.Text).Append('\n');
 
             File.WriteAllText(CachePath(query), lines.ToString());
+            PruneCache();                       // 写成功才回收：超限先删最久未用的
         }
         catch (Exception ex)
         {

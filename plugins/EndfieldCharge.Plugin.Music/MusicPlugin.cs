@@ -45,6 +45,9 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
 
     private readonly LyricsService _lyrics;
 
+    /// <summary>最近一次造的 LRCLIB provider（可能为 null：来源里不含 LRCLIB）；改缓存上限时同步给它。</summary>
+    private LrclibProvider? _lrclib;
+
     /// <summary>当前这一帧（频谱闸门要看它的来源 AUMID 与播放态）。</summary>
     private MusicFrame _frame = MusicFrame.Empty;
 
@@ -212,7 +215,8 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
     private ILyricsProvider? CreateLyricsProvider(string source)
     {
         var lyricsDirectory = Path.Combine(_dataDirectory, "lyrics");
-        var lrclib = new LrclibProvider(lyricsDirectory);
+        var lrclib = new LrclibProvider(lyricsDirectory, cacheLimitBytes: LyricsCache.ToBytes(_settings.LyricsCacheLimitMegabytes));
+        _lrclib = lrclib;
         var netease = new NeteaseProvider();
         var local = new LocalLrcProvider(lyricsDirectory);
 
@@ -406,7 +410,8 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
         Logger.Info($"Music: 设置已加载（展开态超时 {ExpandedTimeoutSeconds:F1}s（下限 3s） / " +
                     $"无歌词显示歌名 {OnOff(_settings.ShowTitleWhenNoLyric)} / " +
                     $"可视化器 {OnOff(_settings.ShowVisualizer)}（强度 {_settings.VisualizerIntensity:F1}× · 柱数 {_settings.VisualizerBars}） / " +
-                    $"歌词来源 {_lyrics.Source}）");
+                    $"歌词来源 {_lyrics.Source} / " +
+                    $"歌词缓存上限 {LyricsCache.ClampLimitMegabytes(_settings.LyricsCacheLimitMegabytes)} MB）");
     }
 
     /// <summary>按设置重建频谱分析器（柱数变了才重建；重建会重置平滑，属设置改动的预期结果）。</summary>
@@ -507,7 +512,11 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
 
     public string SettingsTitle => DisplayName;
 
-    public Control CreateSettingsView() => new MusicSettingsView(() => _settings, UpdateSettings, () => KnownSources);
+    public Control CreateSettingsView() => new MusicSettingsView(
+        () => _settings,
+        UpdateSettings,
+        () => KnownSources,
+        () => Path.Combine(_dataDirectory, "lyrics"));
 
     /// <summary>见过的来源（AUMID）：设置面板据此列出可点选加入白名单的候选。</summary>
     public IReadOnlyList<string> KnownSources
@@ -530,5 +539,25 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
         ApplyAnalyzerBands(settings.VisualizerBars);
         _view.ApplyPreferences(settings.ShowTitleWhenNoLyric, settings.ShowVisualizer, settings.VisualizerIntensity, settings.VisualizerBars);
         RefreshLyric();                                     // ApplyPreferences 会重绑帧，歌词要再写一次
+        ApplyLyricsCacheLimit(settings.LyricsCacheLimitMegabytes);  // 调低上限 → 立即回收，无需重启
+    }
+
+    /// <summary>
+    /// 把新的歌词缓存上限作用到当前 provider **和**磁盘：
+    /// provider 可能没重建（歌词来源没变），也可能根本不是 LRCLIB（如「仅本地」），
+    /// 所以除了同步 provider 的字段，还直接对缓存目录回收一次，保证设置立刻生效。
+    /// </summary>
+    private void ApplyLyricsCacheLimit(int megabytes)
+    {
+        long limitBytes = LyricsCache.ToBytes(megabytes);
+
+        _lrclib?.ApplyCacheLimit(limitBytes);               // 后续每次写入都按新上限回收
+
+        var (deleted, freed) = LyricsCache.Prune(Path.Combine(_dataDirectory, "lyrics"), limitBytes);
+        if (deleted > 0)
+        {
+            Logger.Info($"Music: 歌词缓存上限改为 {LyricsCache.ClampLimitMegabytes(megabytes)} MB → " +
+                        $"回收 {deleted} 个 / 释放 {LyricsCache.FormatSize(freed)}");
+        }
     }
 }

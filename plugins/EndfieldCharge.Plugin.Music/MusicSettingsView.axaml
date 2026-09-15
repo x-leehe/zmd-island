@@ -56,6 +56,23 @@
           <ComboBox x:Name="LyricSourceCombo" Grid.Column="1" Width="240" Height="36"
                     Margin="16,0,0,0" VerticalAlignment="Center"/>
         </Grid>
+
+        <!-- 歌词磁盘缓存：目录与手写的本地歌词共用，清空只删缓存文件 -->
+        <StackPanel>
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="LabelLyricsCacheLimit" Classes="row-label"/>
+            <NumericUpDown x:Name="LyricsCacheLimitStepper" Grid.Column="1" Width="140" Height="36" Minimum="5" Maximum="200" Increment="5" ShowButtonSpinner="True" VerticalAlignment="Center" Margin="16,0,0,0"/>
+          </Grid>
+          <TextBlock x:Name="DescLyricsCacheLimit" Classes="row-desc" Margin="0,6,0,0"/>
+          <Slider x:Name="LyricsCacheLimitSlider" Margin="0,12,0,0" Minimum="5" Maximum="200"
+                  TickFrequency="5" Value="20" IsSnapToTickEnabled="True"/>
+          <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+            <TextBlock x:Name="LyricsCacheUsageText" Classes="row-desc" VerticalAlignment="Center"/>
+            <Button x:Name="LyricsCacheClearButton" Grid.Column="1" Margin="16,0,0,0" FontSize="14" Height="36"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+          </Grid>
+          <TextBlock x:Name="LyricsCacheStatusText" Classes="row-desc" Foreground="#C6CA4C" Opacity="0"/>
+        </StackPanel>
       </StackPanel>
     </StackPanel>
 
