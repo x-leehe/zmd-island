@@ -1,11 +1,24 @@
-/* weather-designs.js — 由 docs/designs/weather-all.json 生成（导出稿与画布默认稿保持同源）
- * 重新生成：node docs/assets/js/gen-designs.js docs/designs/weather-all.json
- * 自定义状态（如「唤起态」）不在此文件里，随导出 JSON 的 states 一起导入。
- */
-window.IslandDesigns = window.IslandDesigns || {};
-window.IslandDesigns.weather = {
-    /* 等待态 560×60 */
-    wait:     {
+{
+  "app": "island-layout-canvas",
+  "version": 3,
+  "page": "weather",
+  "active": "unfold",
+  "states": [
+    {
+      "id": "custom",
+      "name": "自定义",
+      "w": 560,
+      "h": 340
+    },
+    {
+      "id": "cmtzttjqo",
+      "name": "唤起态",
+      "w": 560,
+      "h": 180
+    }
+  ],
+  "layouts": {
+    "wait": {
       "spec": {
         "width": 560,
         "height": 60,
@@ -86,9 +99,7 @@ window.IslandDesigns.weather = {
         }
       ]
     },
-
-    /* 展开态 560×160 */
-    unfold:     {
+    "unfold": {
       "spec": {
         "width": 560,
         "height": 160,
@@ -383,9 +394,7 @@ window.IslandDesigns.weather = {
         }
       ]
     },
-
-    /* 收缩态 200×60 */
-    contract:     {
+    "contract": {
       "spec": {
         "width": 200,
         "height": 60,
@@ -435,9 +444,29 @@ window.IslandDesigns.weather = {
         }
       ]
     },
-
-    /* 自定义 / 入场态 560×340 */
-    custom:     {
+    "cmtzttjqo": {
+      "spec": {
+        "width": 560,
+        "height": 180,
+        "panelOpacity": 0
+      },
+      "components": [
+        {
+          "id": "wq9",
+          "type": "note",
+          "x": 16,
+          "y": 196,
+          "w": 528,
+          "h": 64,
+          "z": 20,
+          "opacity": 1,
+          "props": {
+            "text": "唤起态（560×180）：由鼠标滚轮翻页切到天气岛时出现的态（切换面板时的「唤起」）。\n天气模块尚未为它排任何元素：画布已声明 560×180，但布局留空、未设计，等确定要展示什么再画。"
+          }
+        }
+      ]
+    },
+    "custom": {
       "spec": {
         "width": 560,
         "height": 340,
@@ -459,4 +488,5 @@ window.IslandDesigns.weather = {
         }
       ]
     }
-};
+  }
+}

@@ -1,5 +1,5 @@
-/* settings-designs.js — 由 docs/designs/settings-all.json 生成（导出稿与画布默认稿保持同源）
- * 重新生成：node %TEMP%\opencode\gen-designs.js docs/designs/settings-all.json settings docs/assets/js/settings-designs.js
+/* settings-designs.js — 由 docs/designs/completed/completed_settings.json 生成（导出稿与画布默认稿保持同源）
+ * 重新生成：node docs/assets/js/gen-designs.js docs/designs/completed/completed_settings.json
  * 自定义状态（如「唤起态」）不在此文件里，随导出 JSON 的 states 一起导入。
  */
 window.IslandDesigns = window.IslandDesigns || {};
