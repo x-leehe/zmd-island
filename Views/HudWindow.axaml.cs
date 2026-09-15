@@ -100,6 +100,9 @@ public partial class HudWindow : Window, IIslandHost
     private DispatcherTimer? _passThroughTimer;
     private bool? _interactive;
 
+    /// <summary>屏幕列表不可用只提示一次（避免每 30ms 刷日志）。</summary>
+    private bool _screenUnavailableLogged;
+
     private void SetInteractive(bool interactive)
     {
         if (_interactive == interactive)
@@ -133,39 +136,55 @@ public partial class HudWindow : Window, IIslandHost
         SetWindowLong(handle, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
     }
 
+    /// <summary>窗口宽度的物理像素（与 <see cref="PositionTopCenter"/> 同源）。</summary>
+    private int PixelWindowWidth(double scaling) => (int)Math.Round(Width * scaling);
+
+    /// <summary>
+    /// 由屏幕 + 设置推算窗口左上角的预期物理像素坐标，与 <see cref="PositionTopCenter"/> 共用同一公式。
+    /// 冷启动窗口尚未 <c>Show</c>、<see cref="Window.Position"/> 未落定时，命中区与顶缘细条以此为准。
+    /// </summary>
+    private PixelPoint GetExpectedWindowOrigin(Avalonia.Platform.Screen screen)
+    {
+        var area = screen.WorkingArea;
+
+        // screen.Scaling 来自显示器 DPI 枚举，比窗口的 RenderScaling 可靠（后者首帧前可能未更新）
+        double scaling = screen.Scaling > 0 ? screen.Scaling : 1d;
+
+        int x = IslandWindowMath.WindowLeft(
+            area.X,
+            area.Width,
+            PixelWindowWidth(scaling),
+            _settings.HudPosition == HudPosition.TopLeft,
+            _settings.HudPosition == HudPosition.TopRight);
+
+        return new PixelPoint(x, IslandWindowMath.WindowTop(area.Y));
+    }
+
     /// <summary>岛（胶囊）在屏幕上的物理像素包围盒，用于命中判定。
     /// 宽度取自皮肤当前胶囊宽度——收缩态（200）时命中区与悬停区随之收窄。</summary>
-    private PixelRect GetIslandBoundsPixels()
+    private PixelRect GetIslandBoundsPixels() => GetIslandRectPixels(_skin.CurrentMetrics);
+
+    /// <summary>岛悬停唤醒区（物理像素）：完整胶囊宽度 560×GlobalScale——不随收缩态收窄，
+    /// 悬停在岛完整区域内即保持等待态。</summary>
+    private PixelRect GetIslandHoverBoundsPixels() => GetIslandRectPixels(_skin.HoverMetrics);
+
+    /// <summary>
+    /// 由皮肤尺寸换算岛区物理像素矩形：窗口已显示时用实际 <see cref="Window.Position"/>，
+    /// 未显示（冷启动）时按屏幕 + 设置推算预期位置——命中区与顶缘细条因此不依赖窗口是否已落定。
+    /// 屏幕不可用时退回 <see cref="Window.Position"/>（隐藏态顶缘判定会另行跳过，不会误用未落定的原点）。
+    /// </summary>
+    private PixelRect GetIslandRectPixels(IslandMetrics m)
     {
         var screen = ResolveScreen(_settings.MonitorIndex);
         double scaling = screen is { Scaling: > 0 } ? screen.Scaling : 1d;
-        var m = _skin.CurrentMetrics;
+        var origin = IsVisible || screen is null ? Position : GetExpectedWindowOrigin(screen);
+
         double gs = Math.Clamp(m.Scale, 0.1, 2d);
         double w = m.Width * gs * scaling;
         double h = m.Height * gs * scaling;
         // 岛顶按皮肤上报的布局偏移对齐（+ 内部缩放原点带来的半量位移），各皮肤锚定一致
-        double x = Position.X + Width / 2d * scaling - w / 2d;
-        double y = Position.Y + (m.Top + m.Height * (1d - gs) / 2d) * scaling;
-
-        return new PixelRect(
-            (int)Math.Round(x),
-            (int)Math.Round(y),
-            (int)Math.Round(w),
-            (int)Math.Round(h));
-    }
-
-    /// <summary>岛悬停唤醒区（物理像素）：完整胶囊宽度 560×GlobalScale——不随收缩态收窄，
-    /// 悬停在岛完整区域内即保持等待态。</summary>
-    private PixelRect GetIslandHoverBoundsPixels()
-    {
-        var screen = ResolveScreen(_settings.MonitorIndex);
-        double scaling = screen is { Scaling: > 0 } ? screen.Scaling : 1d;
-        var m = _skin.HoverMetrics;
-        double gs = Math.Clamp(m.Scale, 0.1, 2d);
-        double w = m.Width * gs * scaling;
-        double h = m.Height * gs * scaling;
-        double x = Position.X + Width / 2d * scaling - w / 2d;
-        double y = Position.Y + (m.Top + m.Height * (1d - gs) / 2d) * scaling;
+        double x = IslandWindowMath.IslandLeft(origin.X, PixelWindowWidth(scaling), w);
+        double y = origin.Y + (m.Top + m.Height * (1d - gs) / 2d) * scaling;
 
         return new PixelRect(
             (int)Math.Round(x),
@@ -181,62 +200,79 @@ public partial class HudWindow : Window, IIslandHost
         ApplyNonActivatingStyle(); // 不夺焦点 / 不进 Alt+Tab（句柄创建后才能打扩展样式）
         SetInteractive(false);     // 默认整窗穿透
 
+        StartPassThroughPoll();    // 冷启动构造函数已启动，这里只兜底（幂等，不重复创建）
+    }
+
+    /// <summary>
+    /// 启动 30ms 光标轮询（幂等）：构造函数即启动，保证冷启动（从未 Show、OnOpened 未触发）时
+    /// 隐藏态顶缘悬停唤醒就已工作；<see cref="OnOpened"/> 只做兜底，已有计时器时不重复创建。
+    /// </summary>
+    private void StartPassThroughPoll()
+    {
+        if (_passThroughTimer is not null)
+            return;
+
         _passThroughTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
-        _passThroughTimer.Tick += (_, _) =>
-        {
-            if (!GetCursorPos(out var pt))
-                return;
-
-            var clickRect = GetIslandBoundsPixels();       // 当前胶囊宽度（点击穿透命中区）
-            var hoverRect = GetIslandHoverBoundsPixels();  // 完整 560 宽（悬停唤醒区）
-
-            if (_sm.Current == IslandVisualState.Hidden)
-            {
-                // 隐藏态：整窗穿透（岛不可见，无任何可交互区），
-                // 悬停唤醒只认屏幕顶缘的细条，避免掠过岛旧区域误触发。
-                SetInteractive(false);
-                UpdateDwell(IsOverEdgeStrip(pt, clickRect));
-                return;
-            }
-
-            bool overClick = pt.X >= clickRect.X && pt.X < clickRect.Right
-                && pt.Y >= clickRect.Y && pt.Y < clickRect.Bottom;
-            SetInteractive(overClick);
-
-            // 悬停权威判定（完整岛宽）：悬停期间 T1/T2 永不触发，收缩态立即回到等待
-            bool overHover = pt.X >= hoverRect.X && pt.X < hoverRect.Right
-                && pt.Y >= hoverRect.Y && pt.Y < hoverRect.Bottom;
-            if (overHover)
-            {
-                CancelIdle();
-                if (_sm.Current == IslandVisualState.Contracted)
-                    _sm.TryTransition(IslandVisualState.Waiting);
-            }
-            else if (!IdleSuppressed)
-            {
-                ResumeIdleIfIdleState();
-            }
-        };
+        _passThroughTimer.Tick += OnPassThroughTick;
         _passThroughTimer.Start();
     }
 
     /// <summary>
-    /// 屏幕顶缘细条：物理屏幕顶部（Bounds 顶边）起约 3 物理像素高，横向对齐岛区宽度——
-    /// 隐藏态悬停唤醒区（驻留 300ms → 等待态）。
-    /// 注意：锚定 Bounds 而非 WorkingArea——后者会被顶部任务栏/第三方美化工具（如 MyDockFinder）下移。
+    /// 光标轮询：隐藏态整窗穿透、只认屏幕顶缘细条（驻留 300ms 唤醒）；
+    /// 其余态维护岛区点击穿透与悬停权威判定（悬停期间不排空闲超时）。
     /// </summary>
-    private bool IsOverEdgeStrip(Win32Point pt, PixelRect islandRect)
+    private void OnPassThroughTick(object? sender, EventArgs e)
     {
-        var screen = ResolveScreen(_settings.MonitorIndex);
-        if (screen is null)
-            return false;
+        if (!GetCursorPos(out var pt))
+            return;
 
-        double scaling = screen.Scaling > 0 ? screen.Scaling : 1d;
-        int stripTop = screen.Bounds.Y;   // 物理屏幕顶部（多显示器时为该屏顶边）
-        int stripHeight = (int)Math.Round(3d * scaling);
+        if (_sm.Current == IslandVisualState.Hidden)
+        {
+            // 隐藏态：整窗穿透（岛不可见，无任何可交互区），
+            // 悬停唤醒只认屏幕顶缘的细条，避免掠过岛旧区域误触发。
+            SetInteractive(false);
 
-        return pt.X >= islandRect.X && pt.X < islandRect.Right
-            && pt.Y >= stripTop && pt.Y < stripTop + stripHeight;
+            var screen = ResolveScreen(_settings.MonitorIndex);
+            if (screen is null)
+            {
+                // 屏幕列表不可用：本 tick 跳过命中判定，只提示一次（避免每 30ms 刷日志）
+                if (!_screenUnavailableLogged)
+                {
+                    _screenUnavailableLogged = true;
+                    Logger.Warn("Hud: 屏幕信息不可用，跳过顶缘悬停唤醒判定（仅提示一次）");
+                }
+
+                return;
+            }
+
+            var clickRect = GetIslandBoundsPixels(); // 当前胶囊宽度（点击穿透命中区）
+
+            // 物理屏幕顶部（Bounds 顶边）而非工作区顶边：后者会被顶部任务栏/MyDockFinder 下移
+            UpdateDwell(IslandWindowMath.IsOverEdgeStrip(
+                pt.X, pt.Y, screen.Bounds.Y, screen.Scaling, clickRect.X, clickRect.Right));
+            return;
+        }
+
+        var clickLayout = GetIslandBoundsPixels();       // 当前胶囊宽度（点击穿透命中区）
+        var hoverRect = GetIslandHoverBoundsPixels();    // 完整 560 宽（悬停唤醒区）
+
+        bool overClick = pt.X >= clickLayout.X && pt.X < clickLayout.Right
+            && pt.Y >= clickLayout.Y && pt.Y < clickLayout.Bottom;
+        SetInteractive(overClick);
+
+        // 悬停权威判定（完整岛宽）：悬停期间 T1/T2 永不触发，收缩态立即回到等待
+        bool overHover = pt.X >= hoverRect.X && pt.X < hoverRect.Right
+            && pt.Y >= hoverRect.Y && pt.Y < hoverRect.Bottom;
+        if (overHover)
+        {
+            CancelIdle();
+            if (_sm.Current == IslandVisualState.Contracted)
+                _sm.TryTransition(IslandVisualState.Waiting);
+        }
+        else if (!IdleSuppressed)
+        {
+            ResumeIdleIfIdleState();
+        }
     }
 
     /// <summary>隐藏态：光标在岛区内连续驻留 300ms → 进入等待态。</summary>
@@ -294,6 +330,10 @@ public partial class HudWindow : Window, IIslandHost
             FpsText.IsVisible = true;
             StartFpsCounter();
         }
+
+        // 构造函数即启动轮询：冷启动从不 Show，OnOpened 不会触发，
+        // 若等到 OnOpened 才建计时器，隐藏态顶缘悬停唤醒便不存在。
+        StartPassThroughPoll();
     }
 
     // ---------------- 岛皮肤轮转（鼠标滚轮切换） ----------------
@@ -1008,21 +1048,9 @@ public partial class HudWindow : Window, IIslandHost
         var screen = ResolveScreen(_settings.MonitorIndex);
         if (screen is null) return;
 
-        var area = screen.WorkingArea;
-
-        // screen.Scaling 来自显示器 DPI 枚举，比窗口的 RenderScaling 可靠（后者首帧前可能未更新）
-        double scaling = screen.Scaling > 0 ? screen.Scaling : 1d;
-        int pixelWidth = (int)Math.Round(Width * scaling);
-
-        int x = _settings.HudPosition switch
-        {
-            HudPosition.TopLeft => area.X + 10,
-            HudPosition.TopRight => area.X + area.Width - pixelWidth - 10,
-            _ => area.X + (area.Width - pixelWidth) / 2, // TopCenter
-        };
-
-        // 灵动岛整体上移：默认 +4 → -48（上移 52px），使其更靠近屏幕顶部
-        Position = new PixelPoint(x, area.Y - 48);
+        // 与命中区/顶缘细条共用同一套公式（IslandWindowMath），不再各写一份：
+        // 窗口名虽为 TopCenter，实际按 HudPosition 决定左 / 中 / 右，并整体上移靠近屏幕顶部。
+        Position = GetExpectedWindowOrigin(screen);
     }
 
     /// <summary>
