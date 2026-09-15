@@ -110,6 +110,17 @@ public static class Localization
     public static string WhitelistAdd => IsChinese ? "添加" : "Add";
     public static string WhitelistKnown => IsChinese ? "见过的来源" : "Seen sources";
     public static string WhitelistKnownEmpty => IsChinese ? "（暂无，播放一次即出现）" : "(none yet)";
+    public static string LabelLyricsCacheLimit => IsChinese ? "歌词缓存上限（MB）" : "Lyrics Cache Limit (MB)";
+    public static string DescLyricsCacheLimit => IsChinese
+        ? "超出上限时淘汰最久未使用的歌词缓存"
+        : "Least recently used lyrics are evicted when the limit is exceeded";
+    public static string LyricsCacheUsage(string size, int files) => IsChinese
+        ? $"当前占用 {size}（{files} 首）"
+        : $"{size} in use ({files} tracks)";
+    public static string BtnClearLyricsCache => IsChinese ? "清空歌词缓存" : "Clear Lyrics Cache";
+    public static string LyricsCacheCleared(string freed) => IsChinese
+        ? $"已清空（释放 {freed}）"
+        : $"Cleared ({freed} freed)";
     public static string NoPluginSettings => IsChinese ? "暂无插件提供设置" : "No plugin settings available";
     public static string LabelWaitingTimeout => IsChinese ? "等待态超时（秒）" : "Waiting Timeout (s)";
     public static string LabelContractedTimeout => IsChinese ? "收缩态超时（秒）" : "Contracted Timeout (s)";
@@ -137,6 +148,10 @@ public static class Localization
     public static string SectionStartup => IsChinese ? "启动" : "Startup";
     public static string SectionAlertSettings => IsChinese ? "提醒设置" : "Alert Settings";
     public static string DescAutoStart => IsChinese ? "登录 Windows 时自动启动" : "Auto start on Windows login";
+    public static string LabelStartMinimized => IsChinese ? "启动时最小化" : "Start Minimized";
+    public static string DescStartMinimized => IsChinese
+        ? "启动后保持隐藏，不打扰；关闭则启动即弹出等待态岛（下次启动生效）"
+        : "Stay hidden without interrupting; when off, the island pops up in the waiting state (next launch)";
     public static string DescLowBatteryAlert => IsChinese ? "电量低于阈值时弹窗提醒" : "Alert when battery drops below threshold";
     public static string DescFullChargeAlert => IsChinese ? "电池充满后弹窗通知" : "Notify when battery is fully charged";
 
