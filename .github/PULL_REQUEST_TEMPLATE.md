@@ -1,6 +1,7 @@
 <!--
   Pull request template — also read CONTRIBUTING.md.
-  The PR title must follow the Angular commit convention: <type>(<scope>): <summary>.
+  The PR title must follow Conventional Commits: <type>(<scope>): <summary> (the Angular
+  style is preferred).
   For title: "[Bug] island disappears when music starts"
 -->
 
@@ -26,7 +27,7 @@ Closes #
 
 ## Checklist
 
-- [ ] PR title follows the Angular convention (`<type>(<scope>): <summary>`)
+- [ ] PR title follows Conventional Commits (`<type>(<scope>): <summary>`; Angular style preferred)
 - [ ] Built with `/p:TreatWarningsAsErrors=true` — no new warnings
 - [ ] Actually ran the app and described what I saw above
 - [ ] Pure-logic changes (state machine, geometry math, localization) come with unit tests

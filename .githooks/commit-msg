@@ -1,13 +1,29 @@
 #!/bin/sh
-# Commit message hook — enforces the Angular convention used by this project.
+# Commit message hook.
 #
 # Enable once per clone:
 #   git config core.hooksPath .githooks
 #
 # Bypass in an emergency (please don't): git commit --no-verify
 #
-# Hard failures: header shape, non-ASCII text, over-long header, trailing period.
-# Soft warning: missing/short body for feat/fix (explaining "why" is the point).
+# Hard requirements — the commit is rejected:
+#   - a valid Conventional Commits header: <type>[(<scope>)][!]: <description>
+#   - English only (project policy, not part of Conventional Commits)
+#   - header at most 100 characters
+#
+# Soft warnings — the commit is accepted, the Angular house style is preferred:
+#   - type / scope outside the Angular lists
+#   - capitalized or period-terminated description
+#   - header longer than 72 characters
+#   - feat / fix without a body explaining why
+#
+# Strict mode — every warning above becomes a hard error. It is meant for AI
+# commits, which must match the Angular style exactly, and is enabled by any of:
+#   - ENDFIELDCHARGE_STRICT_COMMIT=1 in the environment
+#   - `git config endfieldcharge.strictCommit true` (per clone)
+#   - an AI attribution trailer in the message (Assisted-by: / Generated-by: /
+#     AI-Assisted:, or Co-authored-by: naming a known assistant)
+# See AGENTS.md.
 
 msg_file="$1"
 [ -n "$msg_file" ] || exit 0
@@ -20,7 +36,26 @@ case "$first" in
     ;;
 esac
 
+# Strict mode: the Angular warnings below become hard errors. On for AI commits.
+strict=0
+[ "${ENDFIELDCHARGE_STRICT_COMMIT:-}" = "1" ] && strict=1
+[ "$(git config --bool --get endfieldcharge.strictCommit 2>/dev/null)" = "true" ] && strict=1
+if LC_ALL=C grep -Eiq '^(assisted-by|generated-by|ai-assisted):' "$msg_file" ||
+   LC_ALL=C grep -Eiq '^co-authored-by:.*(claude|gpt|copilot|codex|cursor|gemini|anthropic|openai|opencode|deepseek|qwen|kimi)' "$msg_file"; then
+  strict=1
+fi
+
 fail=0
+
+warn() {
+  if [ "$strict" = 1 ]; then
+    echo "commit-msg: ERROR (strict mode) — $1" >&2
+    echo "           strict mode is meant for AI commits: match the Angular style exactly (see AGENTS.md)." >&2
+    fail=1
+  else
+    echo "commit-msg: warning — $1" >&2
+  fi
+}
 
 # 1) English only (the project rule).
 if LC_ALL=C grep -q '[^ -~]' "$msg_file"; then
@@ -28,31 +63,61 @@ if LC_ALL=C grep -q '[^ -~]' "$msg_file"; then
   fail=1
 fi
 
-# 2) Header: <type>(<scope>)!: <summary>
-pattern='^(build|ci|docs|feat|fix|perf|refactor|test|chore|revert)(\([a-z0-9._/-]+\))?!?: [a-z0-9](.*[^.]|)$'
+# 2) Header must be a valid Conventional Commits header.
+pattern='^[A-Za-z][A-Za-z0-9-]*(\([^()]+\))?!?: .+$'
 if ! printf '%s\n' "$first" | LC_ALL=C grep -Eq "$pattern"; then
-  echo "commit-msg: header must look like: <type>(<scope>): <summary>" >&2
-  echo "           types: build ci docs feat fix perf refactor test chore revert" >&2
-  echo "           scopes: hud music battery contracts plugins menu power settings build ci docs" >&2
-  echo "           summary: lowercase, imperative, no trailing period — got: $first" >&2
+  echo "commit-msg: header must follow Conventional Commits: <type>[(<scope>)][!]: <description>" >&2
+  echo "           example: feat(music): expand the island when playback starts" >&2
+  echo "           got: $first" >&2
   fail=1
-fi
+else
+  type=$(printf '%s' "$first" | sed -E 's/^([A-Za-z][A-Za-z0-9-]*).*/\1/')
+  scope=$(printf '%s' "$first" | sed -nE 's/^[A-Za-z][A-Za-z0-9-]*\(([^()]+)\).*/\1/p')
+  summary=$(printf '%s' "$first" | sed -E 's/^[A-Za-z][A-Za-z0-9-]*(\([^()]+\))?!?: //')
 
-# 3) Header length.
-if [ "${#first}" -gt 100 ]; then
-  echo "commit-msg: header is ${#first} characters, keep it under 100." >&2
-  fail=1
-fi
+  # 3) Header length: hard cap, Angular style is 72.
+  if [ "${#first}" -gt 100 ]; then
+    echo "commit-msg: header is ${#first} characters, keep it under 100." >&2
+    fail=1
+  elif [ "${#first}" -gt 72 ]; then
+    warn "header is ${#first} characters; the Angular style keeps it within 72."
+  fi
 
-# 4) Body (soft): feat / fix should explain why.
-body_lines=$(tail -n +2 "$msg_file" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
-case "$first" in
-  feat*|fix*)
-    if [ "$body_lines" -lt 2 ]; then
-      echo "commit-msg: warning — feat/fix should carry a body explaining why (Angular convention)." >&2
-    fi
-    ;;
-esac
+  # 4) Angular type / scope lists (soft — Conventional accepts any type and scope).
+  case "$type" in
+    build|ci|docs|feat|fix|perf|refactor|test|chore|revert) ;;
+    *)
+      warn "type '$type' is not an Angular type (build ci docs feat fix perf refactor test chore revert); accepted as Conventional Commits."
+      ;;
+  esac
+  if [ -n "$scope" ]; then
+    case "$scope" in
+      hud|music|battery|contracts|plugins|menu|power|settings|build|ci|docs) ;;
+      *)
+        warn "scope '$scope' is not an Angular scope (hud music battery contracts plugins menu power settings build ci docs); accepted as Conventional Commits."
+        ;;
+    esac
+  fi
+
+  # 5) Angular description style (soft).
+  case "$summary" in
+    [a-z0-9]*) ;;
+    *) warn "description should start lowercase in the Angular style (got: $summary)." ;;
+  esac
+  case "$summary" in
+    *.) warn "description should not end with a period in the Angular style." ;;
+  esac
+
+  # 6) feat / fix should explain why (soft).
+  case "$type" in
+    feat|fix)
+      body_lines=$(tail -n +2 "$msg_file" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
+      if [ "$body_lines" -eq 0 ]; then
+        warn "$type should carry a body explaining why (Angular style)."
+      fi
+      ;;
+  esac
+fi
 
 [ "$fail" -eq 0 ] || exit 1
 exit 0
