@@ -30,6 +30,9 @@ public sealed record AppSettings
     public bool EnablePowerSaverNotify { get; init; } = true;
     public bool EnableAutoStart { get; init; } = false;
 
+    /// <summary>启动时最小化：true = 启动后保持隐藏；false = 启动即弹出等待态岛（下次启动生效）。</summary>
+    public bool StartMinimized { get; init; } = true;
+
     /// <summary>HUD 窗口置顶（灵动岛右键菜单「窗口置顶」可切换）。</summary>
     public bool WindowTopmost { get; init; } = true;
 

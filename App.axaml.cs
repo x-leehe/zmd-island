@@ -23,6 +23,7 @@ public partial class App : Application
 {
     private PowerWatcher? _watcher;
     private HudWindow? _hud;
+    private IDisposable? _hudIpcServer;         // HUD 命名管道服务端（第二个实例 --show 唤醒用）
     private TrayIcon? _tray;
     private NativeMenuItem? _trayTopmostItem;   // 原生右键菜单「置顶」项（供设置变更时刷新勾选）
     private PluginRegistry? _pluginRegistry;    // 进程内插件注册表
@@ -85,6 +86,7 @@ public partial class App : Application
         _hud.ApplySettings(_settings);
 
         SetupTrayIcon();
+        StartIpcServer();
         StartPowerWatching();
 
         // 调试命令行参数
@@ -96,6 +98,8 @@ public partial class App : Application
             _ = TriggerHudAsync();
         else if (HasCommandLineArg("--demo-music"))
             _ = _hud.StartMusicDemoAsync();
+        else if (!_settings.StartMinimized)
+            _ = _hud.ShowWaitingAsync(); // 未勾选「启动时最小化」：无 CLI 参数的正常启动直接弹等待态
 
         base.OnFrameworkInitializationCompleted();
     }
@@ -152,6 +156,23 @@ public partial class App : Application
             Percent: 69, AcOnline: false, Charging: false);
 
         await _hud.ShowSimpleAsync(sample);
+    }
+
+    // ---------------- 进程间通信 ----------------
+
+    /// <summary>
+    /// 命名管道服务端：第二个实例带 --show 启动时，请求当前实例把岛唤醒到等待态。
+    /// 命令在后台线程到达，统一切回 UI 线程执行；未知命令只记日志。
+    /// </summary>
+    private void StartIpcServer()
+    {
+        _hudIpcServer = HudIpc.StartServer(command =>
+        {
+            if (string.Equals(command, HudIpc.ShowCommand, StringComparison.OrdinalIgnoreCase))
+                Dispatcher.UIThread.Post(() => _ = _hud?.ShowWaitingAsync());
+            else
+                Logger.Warn($"HudIpc: 未知命令 —— {command}");
+        });
     }
 
     // ---------------- 电源监听 ----------------
@@ -493,7 +514,8 @@ public partial class App : Application
 
     private void OnTrayClicked(object? sender, EventArgs e)
     {
-        // 左键：等待态开关——已显示则隐藏；未显示则显示状态 C 并保持可见（无自动隐藏）。
+        // 左键：等待态开关——已显示则隐藏；未显示则以等待态显示。
+        // 显示后同样按各状态超时自动收缩 / 隐藏（鼠标停在岛内会暂停计时），并不是"保持可见不自动隐藏"。
         // 左键不再弹出自定义 TrayMenuWindow（该类保留供日后复用）；右键仍是原生 Win32 菜单。
         if (_hud is null)
             return;
@@ -532,6 +554,9 @@ public partial class App : Application
 
         _watcher?.Dispose();
         _watcher = null;
+
+        _hudIpcServer?.Dispose();
+        _hudIpcServer = null;
 
         if (_tray is not null)
         {

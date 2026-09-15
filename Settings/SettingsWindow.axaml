@@ -235,6 +235,12 @@
                               VerticalAlignment="Center" OnContent="" OffContent=""/>
                 <TextBlock x:Name="DescAutoStartText" Grid.Row="1" Classes="row-desc" Margin="0,2,16,0"/>
               </Grid>
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="0,12,0,0">
+                <TextBlock x:Name="LabelStartMinimized" Classes="row-label"/>
+                <ToggleSwitch x:Name="StartMinimizedSwitch" Grid.Column="1" Margin="16,0,0,0"
+                              VerticalAlignment="Center" OnContent="" OffContent=""/>
+                <TextBlock x:Name="DescStartMinimizedText" Grid.Row="1" Classes="row-desc" Margin="0,2,16,0"/>
+              </Grid>
             </StackPanel>
           </StackPanel>
 

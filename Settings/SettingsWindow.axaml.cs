@@ -131,6 +131,7 @@ public partial class SettingsWindow : Window
 
         WindowTopmostSwitch.IsCheckedChanged += (_, _) => SaveInstant();
         AutoStartSwitch.IsCheckedChanged += (_, _) => SaveInstant();
+        StartMinimizedSwitch.IsCheckedChanged += (_, _) => SaveInstant();
         PowerSaverSwitch.IsCheckedChanged += (_, _) => SaveInstant();
         FullChargeSwitch.IsCheckedChanged += (_, _) => SaveInstant();
         LowBatterySwitch.IsCheckedChanged += (_, _) =>
@@ -291,6 +292,8 @@ public partial class SettingsWindow : Window
         LabelLanguage.Text = Localization.LabelLanguage;
         LabelAutoStart.Text = Localization.LabelAutoStart;
         DescAutoStartText.Text = Localization.DescAutoStart;
+        LabelStartMinimized.Text = Localization.LabelStartMinimized;
+        DescStartMinimizedText.Text = Localization.DescStartMinimized;
 
         LabelWaitingTimeout.Text = Localization.LabelWaitingTimeout;
         LabelContractedTimeout.Text = Localization.LabelContractedTimeout;
@@ -410,6 +413,7 @@ public partial class SettingsWindow : Window
         LowBatterySlider.IsEnabled = s.EnableLowBatteryAlert;
         FullChargeSwitch.IsChecked = s.EnableFullChargeAlert;
         AutoStartSwitch.IsChecked = s.EnableAutoStart;
+        StartMinimizedSwitch.IsChecked = s.StartMinimized;
 
         VersionText.Text = GetType().Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
 
@@ -441,6 +445,7 @@ public partial class SettingsWindow : Window
         EnableFullChargeAlert = FullChargeSwitch.IsChecked == true,
         EnablePowerSaverNotify = PowerSaverSwitch.IsChecked == true,
         EnableAutoStart = AutoStartSwitch.IsChecked == true,
+        StartMinimized = StartMinimizedSwitch.IsChecked == true,
     };
 
     // ---------------- 插件设置页 ----------------
