@@ -5,7 +5,7 @@
 **Branch:** main
 
 ## OVERVIEW
-EndfieldCharge — a Windows "Dynamic Island" style battery/power HUD (Avalonia 11 / .NET 8, x64) whose business features are dynamically-loaded plugins. The root `EndfieldCharge.csproj` is the only executable; everything else is contract assemblies, host-project folders, one in-repo plugin, and tests.
+EndfieldIsland — a Windows "Dynamic Island" style battery/power HUD (Avalonia 11 / .NET 8, x64) whose business features are dynamically-loaded plugins. The root `EndfieldCharge.csproj` is the only executable; everything else is contract assemblies, host-project folders, one in-repo plugin, and tests.
 
 ## STRUCTURE
 ```
@@ -57,7 +57,7 @@ Note: `Host/`, `Services/`, `Settings/`, `Views/`, `Styles/`, `Assets/` are fold
 | `DesignTokens` | tokens | Contracts.Avalonia/DesignTokens.cs | colors/metrics/timing (namespace `EndfieldCharge.Host.Island.Animation`) |
 
 ## CONVENTIONS (project-specific)
-- Commits: Angular, **English-only** text, scopes fixed to `{hud,music,battery,contracts,plugins,menu,power,settings,build,ci,docs}`; body required for every type except `docs`. Hook `.githooks/commit-msg` (enable once: `git config core.hooksPath .githooks`) — **not** enforced in CI.
+- Commits: Angular exactly, **English-only** text, scopes fixed to `{hud,music,battery,contracts,plugins,menu,power,settings,build,ci,docs}`; body required for every type except `docs`. The hook treats the Angular style as **errors** for AI commits, so run strict mode — `ENDFIELDCHARGE_STRICT_COMMIT=1 git commit ...` (or set `git config endfieldcharge.strictCommit true` once per clone) — and every Angular warning fails the commit instead of passing. Hook `.githooks/commit-msg` (enable once: `git config core.hooksPath .githooks`) — **not** enforced in CI.
 - All user-visible text goes through `Localization` (zh + en) — never hardcode display strings in XAML or code-behind.
 - Log via `Logger.Info/Warn/Error` (files under `%TEMP%\EndfieldCharge\`), never `Console.WriteLine`.
 - UI thread: marshal with `Dispatcher.UIThread`; never `.Result`/`.Wait()`; animations take a `CancellationToken`.
@@ -66,7 +66,7 @@ Note: `Host/`, `Services/`, `Settings/`, `Views/`, `Styles/`, `Assets/` are fold
 - A plugin may reference ONLY the two contract assemblies (+ Avalonia) — **never** the host `EndfieldCharge.csproj`.
 - Icons are Material 24×24 `StreamGeometry` in `Contracts.Avalonia/Styles/Geometries.axaml`; island geometry comes from `IslandMetrics`.
 - Formatting: LF + UTF-8; 4-space C#, 2-space XAML/csproj/JSON/YAML; file-scoped namespaces; `_camelCase` for readonly/static private fields.
-- `docs/` is the layout design canvas (drag-and-drop island mockups). **Design blueprints are human-authored**: agents must NOT generate or edit `docs/designs/*.json` (or the archived `*-designs.js` templates) — the final designs must come from a human hand. Agents MAY extend the canvas *tool* itself (HTML/CSS/JS under `docs/`) when it lacks a feature or component. This is a project initiative, not a hard rule — exercise judgement.
+- `docs/` is the layout design canvas (drag-and-drop island mockups). **Design blueprints are human-authored**: agents must NOT generate `docs/designs/*.json` (or the archived `*-designs.js` templates) — the final designs must come from a human hand. Agents MAY extend the canvas *tool* itself (HTML/CSS/JS under `docs/`) when it lacks a feature or component, or **refine but not redesign** the human-made design. This is a project initiative, not a hard rule — exercise judgement.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 - A plugin referencing the host project (`EndfieldCharge.csproj`).
@@ -77,7 +77,7 @@ Note: `Host/`, `Services/`, `Settings/`, `Views/`, `Styles/`, `Assets/` are fold
 - A multi-keyframe `Animation` without per-segment `KeySpline`.
 - `.Result` / `.Wait()` on the UI thread.
 - Committing `bin/`, `obj/`, `publish/`, logs or IDE files; non-English commit messages; bundling unrelated changes; reformatting untouched files.
-- Authoring or editing design blueprints (`docs/designs/*.json`, `docs/assets/js/*-designs.js`) — final designs must be human-made. (Extending the canvas *tool* itself is allowed.)
+- Authoring or editing design blueprints (`docs/designs/*.json`, `docs/assets/js/*-designs.js`) — final designs must be human-made. (Extending the canvas *tool* itself or **refine** the human-made design without obvious refactor is allowed.)
 
 ## UNIQUE STYLES
 - Island pill: background `#312F30`, radius 30, shadow `0 1 6 #40000000`; global scale applies to the whole visual tree.
@@ -96,7 +96,7 @@ iscc installer/EndfieldCharge.iss                       # requires Inno Setup on
 CI-equivalent build: `dotnet build -c Release --no-restore /p:TreatWarningsAsErrors=true`.
 
 ## NOTES
-- A running `EndfieldCharge` locks `bin/` output — stop it before rebuilding.
+- A running `EndfieldIsland` locks `bin/` output — stop it before rebuilding.
 - `PublishSingleFile` bundles managed DLLs only: SkiaSharp native dlls (`libSkiaSharp`/`libHarfBuzzSharp`/`av_libglesv2`) and `plugins/` MUST ship beside the exe, or it crashes on start.
 - Release is manual: `workflow_dispatch` + `publish_release` + running on a `v*` tag (a tag push alone publishes nothing).
 - `AssemblyDependencyResolver` needs a `*.deps.json` next to a plugin to resolve private dependencies; the current plugin works because all its deps are in `SharedAssemblies`. Add `EnableDynamicLoading`/`GenerateDependencyFile` if a plugin gains private NuGet deps.

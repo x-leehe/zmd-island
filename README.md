@@ -1,4 +1,4 @@
-# EndfieldCharge · 插件驱动的桌面灵动岛
+# EndfieldIsland · 插件驱动的桌面灵动岛
 
 插上 / 拔掉充电器时，从屏幕顶部弹出一块"灵动岛"式 HUD，显示当前电量（mWh 与百分比）。
 项目已从单体应用重构为**插件驱动**架构，HUD 本身是一个**四态灵动岛**，视觉与动画风格复刻《终末地》工业 / 超充模式 HUD。
@@ -8,12 +8,12 @@
 
 ## 下载安装
 
-从 [Releases](https://github.com/Lenkmat/endfield-charge/releases) 下载：
+从 [Releases](https://github.com/X-LeeHe/zmd-island/releases) 下载：
 
 | 文件 | 说明 |
 |------|------|
-| `EndfieldCharge-x.y.z-setup.exe` | Inno Setup 安装版（中文/英文向导，可选桌面快捷方式与开机自启） |
-| `EndfieldCharge-x.y.z-portable.zip` | 便携版，解压即用 |
+| `EndfieldIsland-x.y.z-setup.exe` | Inno Setup 安装版（中文/英文向导，可选桌面快捷方式与开机自启） |
+| `EndfieldIsland-x.y.z-portable.zip` | 便携版，解压即用 |
 
 ## 功能
 
@@ -108,10 +108,10 @@ iscc installer\EndfieldCharge.iss
 ## 项目结构
 
 ```
-EndfieldCharge/
+EndfieldIsland/
 ├─ EndfieldCharge.csproj                 # 宿主唯一可执行项目（DefaultItemExcludes 排除 src/、plugins/、tests/ 等）
 ├─ .editorconfig                         # 格式基线（CI 用 dotnet format 校验）
-├─ .githooks/commit-msg                  # Angular 提交规范钩子（git config core.hooksPath .githooks）
+├─ .githooks/commit-msg                  # 提交钩子：Conventional 必需，Angular 风格仅警告（AI 提交走严格模式）（git config core.hooksPath .githooks）
 ├─ CONTRIBUTING.md                       # 贡献指南（英文）
 ├─ src/
 │  ├─ EndfieldCharge.Contracts/          # 插件契约（BCL-only，不引用 Avalonia）
@@ -182,7 +182,9 @@ EndfieldCharge/
 
 ## 贡献
 
-见 [CONTRIBUTING.md](CONTRIBUTING.md)：构建与验证流程、提交信息规范（Angular，英文）、PR 约定（squash）、代码与插件规范、AI 辅助贡献政策。
+见 [CONTRIBUTING.md](CONTRIBUTING.md)：构建与验证流程、提交信息规范（Angular/Conventional，英文）、PR 约定（squash）、代码与插件规范、AI 辅助贡献政策。
+
+> 你怎么能直接 commit 到我的 main 分支啊？！GitHub 上不是这样！你应该先 fork 我的仓库，然后从 develop 分支 checkout 一个新的 feature 分支，比如叫 feature/confession。然后你把你的心意写成代码，并为它写好单元测试和集成测试，确保代码覆盖率达到95%以上。接着你要跑一下 Linter，通过所有的代码风格检查。然后你再 commit，commit message 要遵循 Conventional Commits 规范。之后你把这个分支 push 到你自己的远程仓库，然后给我提一个 Pull Request。在 PR 描述里，你要详细说明你的功能改动和实现思路，并且 @ 我和至少两个其他的评审。我们会 review 你的代码，可能会留下一些评论，你需要解决所有的 thread。等 CI/CD 流水线全部通过，并且拿到至少两个 LGTM 之后，我才会考虑把你的分支 squash and merge 到 develop 里，等待下一个版本发布。你怎么直接上来就想 force push 到 main？！GitHub 上根本不是这样！我拒绝合并！ ——来自《🐧你为啥直接commit到我的master分支啊》[Bilibili](https://www.bilibili.com/video/BV1pwC6BxEeb)
 
 ## 鸣谢
 

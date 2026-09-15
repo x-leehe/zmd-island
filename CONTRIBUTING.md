@@ -1,6 +1,6 @@
-# Contributing to EndfieldCharge
+# Contributing to EndfieldIsland
 
-Thanks for taking the time to contribute. EndfieldCharge is a plugin-driven, four-state
+Thanks for taking the time to contribute. EndfieldIsland is a plugin-driven, four-state
 "Dynamic Island" style HUD for Windows: it reacts to power events and, through plugins,
 to media playback.
 
@@ -55,7 +55,7 @@ Notes
   are `src/EndfieldCharge.Contracts[.Avalonia]`, and external plugins land in `plugins/`
   next to the executable — that is where the host loads them from at runtime.
 - On Windows a running instance locks the output. Stop it before rebuilding:
-  `Get-Process EndfieldCharge -ErrorAction SilentlyContinue | Stop-Process -Force`
+  `Get-Process EndfieldIsland -ErrorAction SilentlyContinue | Stop-Process -Force`
 - Debug flags: `--demo`, `--preview`, `--preview-unplug`, `--debug-ring`, `--power-log`,
   `--show-fps`, `--demo-music` (see the README for the current list and semantics).
 - Logs: `%TEMP%\EndfieldCharge\log-YYYYMMDD.txt`. Plugin state lives in
@@ -66,8 +66,22 @@ Notes
 
 ## Commit messages
 
-This project follows the [Angular commit message convention][angular-commit], which is the
-same shape as [Conventional Commits][conventional-commits].
+Every commit must be a valid [Conventional Commits][conventional-commits] message:
+
+```
+<type>[(<scope>)][!]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+On top of that the project uses the stricter [Angular commit message convention][angular-commit]
+as its house style. A Conventional message that is not Angular — an unrecognised `type`, a scope
+outside the list below, a capitalized or period-terminated description, an over-long header, or a
+missing body — is **accepted**; the local `commit-msg` hook only warns about it. Matching the
+Angular style is still preferred: the release notes and the version bump are derived from this
+history, and code review assumes the same shape.
 
 **Commit messages MUST be written in English**, even though other parts of the repository
 (comments, docs) may be Chinese. History is the project's changelog for release notes, so it
@@ -88,7 +102,7 @@ or English — whatever gets the point across.
 <type>(<scope>): <summary>
 ```
 
-- **type** — one of:
+- **type** — the Angular types are:
 
   | type       | use for                                                        |
   | ---------- | -------------------------------------------------------------- |
@@ -103,18 +117,22 @@ or English — whatever gets the point across.
   | `chore`    | maintenance that fits none of the above                        |
   | `revert`   | reverting a previous commit                                    |
 
-- **scope** — optional, but when present it must come from this list: `hud`, `music`,
-  `battery`, `contracts`, `plugins`, `menu`, `power`, `settings`, `build`, `ci`, `docs`.
-  Omit it for changes that span the whole repo; if your change really needs a new scope, say
-  so in the pull request.
-- **summary** — imperative present tense ("add", not "added" nor "adds"), not capitalized,
-  no period at the end, ≤ 72 characters.
+  Conventional Commits accepts any type, so `style`, `deps`, `ui`, … are allowed too; the hook
+  warns that they are not in the Angular list.
+
+- **scope** — optional; the Angular scopes are `hud`, `music`, `battery`, `contracts`,
+  `plugins`, `menu`, `power`, `settings`, `build`, `ci`, `docs`. Other scopes are accepted
+  (the hook warns). Omit it for changes that span the whole repo, and mention a brand-new
+  scope in the pull request.
+- **summary** — Angular style: imperative present tense ("add", not "added" nor "adds"),
+  lowercase, no period at the end, ≤ 72 characters. A description that breaks these is accepted
+  with a warning.
 
 ### Body
 
-Mandatory for every type except `docs`, and at least a few lines long. Explain **why** the
-change is needed and what the previous vs. new behavior is — the diff already shows *what*
-changed. Wrap around 72 columns.
+Angular style: every type except `docs` carries a body that explains **why** the change is
+needed and what the previous vs. new behavior is — the diff already shows *what* changed. Wrap
+around 72 columns. The hook warns when a `feat`/`fix` has no body at all.
 
 ### Footer
 
@@ -163,10 +181,19 @@ The repository ships a `commit-msg` hook in `.githooks/`. Enable it once per clo
 git config core.hooksPath .githooks
 ```
 
-It hard-fails on a malformed header, non-ASCII text, an over-long header and a trailing
-period, and warns when a `feat`/`fix` carries no body. Commit messages are **not** checked in
-CI — the hook is the only automated gate, so please turn it on. In an emergency it can be
-bypassed with `git commit --no-verify`.
+It **rejects** a header that is not valid Conventional Commits
+(`<type>[(<scope>)][!]: <description>`), non-ASCII text, and a header longer than 100
+characters. It only **warns** about the Angular extras — a type or scope outside the lists
+above, a capitalized or period-terminated description, a header longer than 72 characters, and
+a `feat`/`fix` with no body — so a looser Conventional message still goes through. Commit
+messages are **not** checked in CI; the hook is the only automated gate, so please turn it on.
+In an emergency it can be bypassed with `git commit --no-verify`.
+
+AI commits must pass in **strict mode**, where every Angular warning above becomes a hard
+error: turn it on for one commit with `ENDFIELDCHARGE_STRICT_COMMIT=1`, or for the clone with
+`git config endfieldcharge.strictCommit true`. The hook also switches to strict automatically
+when the message discloses an AI trailer (`Assisted-by:`, `Generated-by:`, `AI-Assisted:`, or a
+`Co-authored-by:` naming a known assistant).
 
 ### What not to do
 
@@ -325,14 +352,15 @@ Please include:
   publish anything; CI artifacts carry the streaming `0.0.<run_number>` version and never
   reach a release.
 - Versioning follows Conventional Commits: `fix` → patch, `feat` → minor,
-  `BREAKING CHANGE` → major.
+  `BREAKING CHANGE` (or `!`) → major. Other types are allowed but do not move the version.
 - Packages embed the external plugins: the single-file exe must be distributed together with
   the `plugins/` folder produced by `dotnet publish`.
 
 ## License
 
 By contributing, you agree that your contribution is licensed under the MIT License, the same
-license as this project.
+license as this project (see [LICENSE](LICENSE)). Copyright is held by two parties: X-LeeHe as
+the maintainer, and Lenkmat as the original author of the upstream project.
 
 [angular-commit]: https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md
 [conventional-commits]: https://www.conventionalcommits.org/en/v1.0.0/
