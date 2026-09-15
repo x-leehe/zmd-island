@@ -28,7 +28,8 @@ Note: `Host/`, `Services/`, `Settings/`, `Views/`, `Styles/`, `Assets/` are fold
 ## WHERE TO LOOK
 | Task | Location | Notes |
 |---|---|---|
-| App startup / wiring | `Program.cs`, `App.axaml.cs` | bootstrap: settings → registry → battery meta → plugins → HudWindow → tray → power → debug flags |
+| App startup / wiring | `Program.cs`, `App.axaml.cs` | bootstrap: settings → registry → battery meta → plugins → HudWindow → tray → power → IPC → debug flags |
+| CLI / wake a running instance | `Program.cs`, `Services/HudIpc.cs` | single-instance mutex decided first; `--show` reaches the resident instance over a same-user named pipe (`EndfieldIsland.Hud.Ipc`) |
 | Plugin contracts | `src/EndfieldCharge.Contracts`, `src/EndfieldCharge.Contracts.Avalonia` | `IPlugin`, `IIslandSkin`, `IIslandContentProvider`, `IContextMenuContributor`, `IPluginSettingsPage`, `IIslandHost` |
 | Plugin discovery/loading | `Host/Plugins/PluginLoader.cs` | scans `plugins/*.dll`, per-plugin ALC; `SharedAssemblies` must list every contract assembly |
 | Island 4-state machine | `Host/Island/IslandStateMachine.cs` | Hidden/Response/Waiting/Contracted; pure + tested |
@@ -51,6 +52,9 @@ Note: `Host/`, `Services/`, `Settings/`, `Views/`, `Styles/`, `Assets/` are fold
 | `IIslandSkin` | contract | Contracts.Avalonia/IIslandSkin.cs:13 | skin = view + play methods + optional traits |
 | `IIslandHost` | contract | Contracts.Avalonia/IIslandHost.cs:10 | current/switch/show skins (host service) |
 | `IslandStateMachine` | pure logic | Host/Island/IslandStateMachine.cs:19 | 4-state transitions |
+| `IslandWindowMath` | pure logic | Host/Island/IslandWindowMath.cs | window origin + top-edge hover strip math (no Avalonia); shared by positioning and hit test |
+| `HudIpc` | service | Services/HudIpc.cs | named-pipe channel; `show` command; `PipeOptions.CurrentUserOnly` |
+| `LyricsCache` | plugin helper | plugins/EndfieldCharge.Plugin.Music/LyricsCache.cs | LRU lyrics cache cap; only `^[0-9A-F]{16}\.lrc$` is ever measured or deleted |
 | `HudWindow` | Window, `IIslandHost` | Views/HudWindow.axaml.cs:35 | window chrome + skin rotation + host service |
 | `BatteryPlugin` | meta-plugin | Host/Plugins/Battery/BatteryPlugin.cs:18 | non-unloadable skin + content |
 | `Localization` | strings | src/EndfieldCharge.Contracts/Localization.cs | single zh+en table shared by host AND plugins |
