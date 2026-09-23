@@ -452,7 +452,8 @@ public sealed class SmtcMediaSource : IDisposable
         try
         {
             string key = $"{props.Title}|{props.Artist}|{props.AlbumTitle}";
-            if (key == _coverKey)
+            // 播放器切歌后可能先给出 null，稍后才补上缩略图；不能缓存「无封面」。
+            if (key == _coverKey && _cover is not null)
                 return _cover;
 
             if (props.Thumbnail is null)
