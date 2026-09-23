@@ -76,8 +76,7 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
     private readonly HashSet<string> _knownSources = new(StringComparer.OrdinalIgnoreCase);
 
     private const int KnownSourcesCap = 32;
-    private bool _wasPlaying;
-    private bool _baselineSet;          // 首帧只作基线：启动时本来就在播不该弹岛
+    private readonly MusicPlaybackEdge _playbackEdge = new();
     private DateTime _lastAutoExpandUtc;
 
     public MusicPlugin()
@@ -119,21 +118,8 @@ public sealed class MusicPlugin : IPlugin, IIslandSkin, IIslandExpandToggle, ICo
     {
         _frame = frame;
 
-        if (!_baselineSet)
-        {
-            // 首帧只作基线（启动时本来就在播 → 不弹）
-            _baselineSet = true;
-            _wasPlaying = frame.IsPlaying;
-        }
-        else if (frame.IsPlaying && !_wasPlaying)
-        {
-            _wasPlaying = true;
+        if (_playbackEdge.Observe(frame.SourceAppId, frame.IsPlaying))
             TryAutoExpand(frame);
-        }
-        else
-        {
-            _wasPlaying = frame.IsPlaying;
-        }
 
         _view.BindMusic(frame);
         RefreshLyric();                                    // 换曲先按"暂无歌词"刷一次：立刻回到曲名占位，不留上一首的残影
