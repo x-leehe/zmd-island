@@ -136,10 +136,15 @@
                       <Path Data="{DynamicResource Icon.MusicNote}" Fill="#B3FFFFFF"/>
                     </Canvas>
                   </Viewbox>
-                  <Image x:Name="UnfoldCoverImage" Stretch="UniformToFill"/>
+                   <Image x:Name="UnfoldCoverImage" Stretch="UniformToFill"/>
+                  <Border x:Name="UnfoldSourceBadge" Width="24" Height="24" CornerRadius="5"
+                          Background="#D9262425" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                          Margin="0,0,3,3" IsVisible="False" IsHitTestVisible="False">
+                    <Image x:Name="UnfoldSourceIcon" Width="18" Height="18" Stretch="Uniform"/>
+                  </Border>
                 </Grid>
               </Border>
-              <StackPanel x:Name="UnfoldTitle" Canvas.Left="144" Canvas.Top="32" Width="168">
+              <StackPanel x:Name="UnfoldTitle" Canvas.Left="144" Canvas.Top="32" Width="200">
                 <TextBlock x:Name="UnfoldTitleText" FontSize="20" FontWeight="Bold" Foreground="White"
                            TextTrimming="CharacterEllipsis"/>
                 <TextBlock x:Name="UnfoldArtistText" FontSize="16" Foreground="#8CFFFFFF"

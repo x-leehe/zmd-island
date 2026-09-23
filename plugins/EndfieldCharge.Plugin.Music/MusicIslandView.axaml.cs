@@ -10,6 +10,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using EndfieldCharge.Host.Island;
 using EndfieldCharge.Host.Island.Animation;
@@ -67,6 +68,8 @@ public partial class MusicIslandView : UserControl
     private readonly LyricFollowTarget[] _lyrics;
 
     private MusicFrame _frame = MusicFrame.Empty;
+    private string? _sourceIconId;
+    private Bitmap? _sourceIcon;
     private bool _expanded;
     private bool _contracted;
     private bool _revealPending;
@@ -142,6 +145,34 @@ public partial class MusicIslandView : UserControl
     {
         _frame = frame;
         ApplyFrame();
+        if (string.Equals(_sourceIconId, frame.SourceAppId, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _sourceIconId = frame.SourceAppId;
+        UnfoldSourceIcon.Source = null;
+        UnfoldSourceBadge.IsVisible = false;
+        if (string.IsNullOrWhiteSpace(frame.SourceAppId))
+            return;
+
+        string sourceId = frame.SourceAppId;
+        _ = LoadSourceIconAsync(sourceId);
+    }
+
+    private async Task LoadSourceIconAsync(string sourceId)
+    {
+        var icon = await Task.Run(() => SourceAppIcon.TryLoad(sourceId));
+        if (!string.Equals(_sourceIconId, sourceId, StringComparison.OrdinalIgnoreCase))
+        {
+            icon?.Dispose();
+            return;
+        }
+
+        UnfoldSourceIcon.Source = icon;
+        UnfoldSourceBadge.IsVisible = icon is not null;
+        var old = _sourceIcon;
+        _sourceIcon = icon;
+        if (old is not null)
+            Avalonia.Threading.Dispatcher.UIThread.Post(old.Dispose, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     private void ApplyFrame()
